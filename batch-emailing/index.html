@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8">
         <link rel="stylesheet" href="style.css">
         <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
     </head>
@@ -10,8 +11,8 @@
                 <!-- Language Switcher -->
                 <div class="language-switcher">
                     <div class="current-lang">
-                        <span>🇬🇧</span>
-                        <span class="lang-text">EN</span>
+                        <span>🇫🇷</span>
+                        <span class="lang-text">FR</span>
                     </div>
                     <div class="lang-dropdown">
                         <!-- Options populated by JavaScript -->
@@ -23,22 +24,23 @@
             </div>
 
             <div class="form-group">
-                <label for="replyTo">Reply-to Email Address</label>
-                <input type="email" id="replyTo" placeholder="Enter reply-to email address">
-            </div>
-
-            <div class="form-group">
-                <label for="recipientsList">Recipients (BCC)</label>
+                <label for="recipientsList">Recipients</label>
                 <p class="warning-text"><i>💡 Filters must be applied on this widget's view to affect the recipient list. Please verify that the recipient count matches your expected results.</i></p>
-                <div id="recipientsList" class="recipients-list">
+                
+                <div class="manual-add-section">
+                    <input type="email" id="newEmail" placeholder="Enter email address" class="manual-input">
+                    <button id="addEmail" class="btn btn-secondary">Add Recipient</button>
                 </div>
+
+                <div id="recipientsList" class="recipients-list"></div>
+
                 <div class="recipients-count">
                     <b><span id="recipientsCount">0</span></b>
                 </div>
+
                 <div id="removedList" class="removed-list" style="display: none;">
                     <h3>Removed Recipients</h3>
-                    <div id="removedEmails" class="removed-emails">
-                    </div>
+                    <div id="removedEmails" class="removed-emails"></div>
                 </div>
             </div>
 
@@ -55,28 +57,13 @@
                 <textarea id="emailContent" class="email-editor" placeholder="Write your email content here..."></textarea>
             </div>
 
-            <div class="form-group">
-                <label for="newEmail">Additional Recipients</label>
-                <div class="manual-add-section">
-                    <input type="email" id="newEmail" placeholder="Enter email address" class="manual-input">
-                    <button id="addEmail" class="btn btn-secondary">Add Recipient</button>
-                </div>
-                <div id="manualList" class="manual-list" style="display: none;">
-                    <h3>Manually Added Recipients</h3>
-                    <div id="manualEmails" class="manual-emails">
-                    </div>
-                </div>
-            </div>
-
             <div class="widget-footer">
                 <button id="sendEmail" class="btn btn-primary">Compose Email</button>
             </div>
 
             <div id="statusMessage" class="status-message"></div>
         </div>
-        
-        
 
+        <script src="script.js"></script>
     </body>
-    <script src="script.js"></script>
 </html>

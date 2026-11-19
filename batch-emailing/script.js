@@ -23,9 +23,7 @@ const translations = {
     en: {
         title: "Batch Email Sender",
         subtitle: "Configure and send batch emails to multiple recipients",
-        replyToLabel: "Reply-to Email Address",
-        replyToPlaceholder: "Enter reply-to email address",
-        recipientsLabel: "Recipients (BCC)",
+        recipientsLabel: "Recipients",
         recipientsWarning: "💡 Filters must be applied on this widget's view to affect the recipient list. Please verify that the recipient count matches your expected results.",
         recipientsSelected: "recipients selected",
         removedRecipientsTitle: "Removed Recipients",
@@ -33,14 +31,11 @@ const translations = {
         subjectPlaceholder: "Enter email subject",
         contentLabel: "Email Content",
         contentPlaceholder: "Write your email content here...",
-        additionalRecipientsLabel: "Additional Recipients",
         emailPlaceholder: "Enter email address",
         addRecipientBtn: "Add Recipient",
-        manualRecipientsTitle: "Manually Added Recipients",
         composeBtn: "Compose Email",
         mapEmailError: "Please map the email column first",
         noRecipientsError: "No recipient emails found",
-        invalidReplyToError: "Please enter a valid reply-to email address",
         noSubjectError: "Please enter an email subject",
         noContentError: "Please enter email content or configure a content column",
         invalidEmailError: "Please enter a valid email address",
@@ -50,18 +45,16 @@ const translations = {
         removedFrom: "Removed {email} from recipients",
         restoredTo: "Restored {email} to recipients",
         addedTo: "Added {email} to recipients",
-        removedFromManual: "Removed {email} from manual recipients",
+        manualBadge: "Manual",
+        removeTitle: "Remove",
+        restoreTitle: "Restore",
         langName: "English",
-        langCode: "EN",
-        contentInfoText: "📝 Content auto-filled from first table row. To auto-fill subject, start content with [Subject]. You can edit them before sending.",
-        contentInfoSubject: "📝 Subject and content auto-filled from first table row. Subject was extracted from [brackets] at the beginning. You can edit them before sending." 
+        langCode: "EN"
     },
     fr: {
         title: "Envoi d'emails en lot",
         subtitle: "Configurez et envoyez des emails à plusieurs destinataires",
-        replyToLabel: "Adresse de réponse",
-        replyToPlaceholder: "Saisissez l'adresse de réponse",
-        recipientsLabel: "Destinataires (CCI)",
+        recipientsLabel: "Destinataires",
         recipientsWarning: "💡 Les filtres doivent être appliqués sur la vue de ce widget pour affecter la liste des destinataires. Veuillez vérifier que le nombre de destinataires correspond à vos résultats attendus.",
         recipientsSelected: "destinataires sélectionnés",
         removedRecipientsTitle: "Destinataires supprimés",
@@ -69,14 +62,11 @@ const translations = {
         subjectPlaceholder: "Saisissez l'objet de l'email",
         contentLabel: "Contenu de l'email",
         contentPlaceholder: "Rédigez le contenu de votre email ici...",
-        additionalRecipientsLabel: "Destinataires supplémentaires",
         emailPlaceholder: "Saisissez une adresse email",
         addRecipientBtn: "Ajouter destinataire",
-        manualRecipientsTitle: "Destinataires ajoutés manuellement",
         composeBtn: "Composer l'email",
         mapEmailError: "Veuillez d'abord mapper la colonne email",
         noRecipientsError: "Aucune adresse email de destinataire trouvée",
-        invalidReplyToError: "Veuillez saisir une adresse de réponse valide",
         noSubjectError: "Veuillez saisir un objet d'email",
         noContentError: "Veuillez saisir le contenu de l'email ou configurer une colonne de contenu",
         invalidEmailError: "Veuillez saisir une adresse email valide",
@@ -86,11 +76,11 @@ const translations = {
         removedFrom: "{email} supprimé des destinataires",
         restoredTo: "{email} restauré dans les destinataires",
         addedTo: "{email} ajouté aux destinataires",
-        removedFromManual: "{email} supprimé des destinataires manuels",
+        manualBadge: "Manuel",
+        removeTitle: "Supprimer",
+        restoreTitle: "Restaurer",
         langName: "Français",
-        langCode: "FR",
-        contentInfoText: "📝 Contenu pré-rempli depuis la première ligne du tableau. Pour pré-remplir le sujet, commencez le contenu par [Sujet]. Vous pouvez les modifier avant l'envoi.",
-        contentInfoSubject: "📝 Sujet et contenu pré-remplis depuis la première ligne du tableau. Le sujet a été extrait des [crochets] au début. Vous pouvez les modifier avant l'envoi."
+        langCode: "FR"
     }
 };
 
@@ -99,50 +89,56 @@ const languageFlags = {
     fr: "🇫🇷"
 };
 
-let currentLang = 'en';
+let currentLang = 'fr';
 let isDropdownOpen = false;
 
+// Translation helper
 function t(key, replacements = {}) {
-    let text = translations[currentLang][key] || translations.en[key] || key;
-    
-    // Replace placeholders like {email}
+    let text = translations[currentLang]?.[key] || translations.en?.[key] || key;
     Object.keys(replacements).forEach(placeholder => {
         text = text.replace(`{${placeholder}}`, replacements[placeholder]);
     });
-    
     return text;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function updateLanguage() {
     // Update header
-    document.querySelector('.widget-header h2').textContent = t('title');
-    document.querySelector('.widget-header p').textContent = t('subtitle');
-    
-    // Update form labels and placeholders
-    document.querySelector('label[for="replyTo"]').textContent = t('replyToLabel');
-    document.getElementById('replyTo').placeholder = t('replyToPlaceholder');
-    
-    document.querySelector('label[for="recipientsList"]').textContent = t('recipientsLabel');
-    document.querySelector('.warning-text i').textContent = t('recipientsWarning');
-    
-    document.querySelector('label[for="subject"]').textContent = t('subjectLabel');
-    document.getElementById('subject').placeholder = t('subjectPlaceholder');
-    
-    document.querySelector('label[for="emailContent"]').textContent = t('contentLabel');
-    document.getElementById('emailContent').placeholder = t('contentPlaceholder');
-    
-    document.querySelector('label[for="newEmail"]').textContent = t('additionalRecipientsLabel');
-    document.getElementById('newEmail').placeholder = t('emailPlaceholder');
-    document.getElementById('addEmail').textContent = t('addRecipientBtn');
-    
-    document.getElementById('sendEmail').textContent = t('composeBtn');
-    
-    // Update dynamic content
+    const titleEl = document.querySelector('.widget-header h2');
+    const subtitleEl = document.querySelector('.widget-header p');
+    if (titleEl) titleEl.textContent = t('title');
+    if (subtitleEl) subtitleEl.textContent = t('subtitle');
+
+    // Update labels and inputs
+    const recipientsLabel = document.querySelector('label[for="recipientsList"]');
+    const warningText = document.querySelector('.warning-text i');
+    if (recipientsLabel) recipientsLabel.textContent = t('recipientsLabel');
+    if (warningText) warningText.textContent = t('recipientsWarning');
+
+    const subjectLabel = document.querySelector('label[for="subject"]');
+    if (subjectLabel) subjectLabel.textContent = t('subjectLabel');
+    if (subjectInput) subjectInput.placeholder = t('subjectPlaceholder');
+
+    const contentLabel = document.querySelector('label[for="emailContent"]');
+    if (contentLabel) contentLabel.textContent = t('contentLabel');
+    if (emailContent) emailContent.placeholder = t('contentPlaceholder');
+
+    if (newEmailInput) newEmailInput.placeholder = t('emailPlaceholder');
+    if (addEmailBtn) addEmailBtn.textContent = t('addRecipientBtn');
+    if (sendEmailBtn) sendEmailBtn.textContent = t('composeBtn');
+
+    // Update lists and language selector
     updateRecipientsDisplay();
     updateRemovedEmailsDisplay();
-    updateManualEmailsDisplay();
-    
-    // Update language switcher
     updateLanguageSwitcher();
 }
 
@@ -154,7 +150,7 @@ function updateLanguageSwitcher() {
             <span class="lang-text">${t('langCode')}</span>
         `;
     }
-    
+
     const dropdown = document.querySelector('.lang-dropdown');
     if (dropdown) {
         dropdown.innerHTML = '';
@@ -187,7 +183,6 @@ function toggleDropdown(force = null) {
 function switchLanguage(lang) {
     currentLang = lang;
     updateLanguage();
-    
     localStorage.setItem('batchEmailLang', lang);
 }
 
@@ -198,18 +193,17 @@ function loadLanguagePreference() {
     }
 }
 
-// Global variables
+// State
 let emailList = [];
-let removedEmails = new Set();
-let manuallyAddedEmails = new Set();
+const removedEmails = new Set();
+const manuallyAddedEmails = new Set();
 let mappedColumns = null;
 let allRecords = [];
 let currentMappings = {};
 
-// DOM Elements (will be initialized in DOMContentLoaded)
-let recipientsList, recipientsCount, removedEmailsList, removedListSection, 
-    manualEmailsList, manualListSection, replyToInput, subjectInput, 
-    emailContent, newEmailInput, addEmailBtn, sendEmailBtn, statusMessage;
+// DOM Elements
+let recipientsList, recipientsCount, removedEmailsList, removedListSection,
+    subjectInput, emailContent, newEmailInput, addEmailBtn, sendEmailBtn, statusMessage;
 
 loadLanguagePreference();
 
@@ -220,18 +214,20 @@ grist.onRecords(function(records, mappings) {
     mappedColumns = allRecords.length > 0 ? grist.mapColumnNames(allRecords[0]) : null;
 
     if (mappedColumns) {
-        const newEmailList = [...new Set(allRecords
+        const tableEmails = [...new Set(allRecords
             .map(record => grist.mapColumnNames(record).emails)
             .filter(email => email && email.trim() !== '')
-            .flatMap(email => email.split(',').map(e => e.trim()).filter(e => e !== ''))
+            .flatMap(email => email.split(',').map(e => e.trim()).filter(Boolean))
         )];
 
-        emailList = [...new Set([...newEmailList, ...manuallyAddedEmails])];
+        // If a previously manual email is now in table data, remove from manual set
+        tableEmails.forEach(email => manuallyAddedEmails.delete(email));
+
+        // Combine table emails and manually added emails
+        emailList = [...new Set([...tableEmails, ...manuallyAddedEmails])];
 
         updateRecipientsDisplay();
         updateRemovedEmailsDisplay();
-        updateManualEmailsDisplay();
-        prefillContentFromColumn();
     } else {
         showError(t('configError'));
     }
@@ -242,56 +238,18 @@ function parseContentAndSubject(rawContent) {
     if (!rawContent || typeof rawContent !== 'string') {
         return { subject: null, content: rawContent || '' };
     }
-    
-    const trimmedContent = rawContent.trim();
-    
-    // Check if content starts with [subject]
-    const subjectMatch = trimmedContent.match(/^\[([^\]]+)\]\s*([\s\S]*)$/);
-    
-    if (subjectMatch) {
-        const subject = subjectMatch[1].trim();
-        const content = subjectMatch[2].trim();
-        return { subject, content };
-    }
-    
-    // No subject found, return all as content
-    return { subject: null, content: trimmedContent };
-}
 
-// Auto-fill content and subject from content column if available
-function prefillContentFromColumn() {
-    const hasContentColumn = currentMappings && currentMappings.content;
-    
-    if (hasContentColumn && allRecords.length > 0) {
-        const firstRecord = allRecords[0];
-        const mapped = grist.mapColumnNames(firstRecord);
-        const columnContent = mapped.content;
-        
-        if (columnContent && columnContent.trim()) {
-            const { subject, content } = parseContentAndSubject(columnContent);
-            
-            // Auto-fill subject if found and field is empty
-            if (subject && subjectInput && !subjectInput.value.trim()) {
-                subjectInput.value = subject;
-            }
-            
-            // Auto-fill content if field is empty
-            if (content && emailContent && !emailContent.value.trim()) {
-                emailContent.value = content;
-            }
-            
-            // Show appropriate info message
-            const infoText = document.getElementById('contentInfoText');
-            if (infoText) {
-                if (subject) {
-                    infoText.textContent = t('contentInfoSubject');
-                } else {
-                    infoText.textContent = t('contentInfoText');
-                }
-                infoText.style.display = 'block';
-            }
-        }
+    const trimmedContent = rawContent.trim();
+    const subjectMatch = trimmedContent.match(/^\[([^\]]+)\]\s*([\s\S]*)$/);
+
+    if (subjectMatch) {
+        return {
+            subject: subjectMatch[1].trim(),
+            content: subjectMatch[2].trim()
+        };
     }
+
+    return { subject: null, content: trimmedContent };
 }
 
 // Get email content from textarea
@@ -299,105 +257,88 @@ function getEmailContent() {
     return emailContent ? emailContent.value.trim() : '';
 }
 
-// Create recipient element
-function createRecipientElement(email, isRemoved = false) {
+// Create recipient DOM element (handles both normal, manual, and removed recipients)
+function createRecipientElement(email, { isRemoved = false, isManual = false } = {}) {
     const div = document.createElement('div');
     div.className = `recipient${isRemoved ? ' removed' : ''}`;
 
+    const badgeHtml = isManual ? `<span class="tag">${t('manualBadge')}</span>` : '';
+
     div.innerHTML = `
-        <span>${email}</span>
+        <div class="recipient-info">
+            <span class="recipient-email">${escapeHtml(email)}</span>
+            ${badgeHtml}
+        </div>
         <div class="actions">
-            ${isRemoved ? 
-                `<button class="btn-icon btn-success" data-action="restore" title="Restore">↩</button>` :
-                `<button class="btn-icon btn-danger" data-action="remove" title="Remove">×</button>`
+            ${isRemoved ?
+                `<button class="btn-icon btn-success" data-action="restore" title="${t('restoreTitle')}">↩</button>` :
+                `<button class="btn-icon btn-danger" data-action="remove" title="${t('removeTitle')}">×</button>`
             }
         </div>
     `;
 
     const actionBtn = div.querySelector('[data-action]');
-    actionBtn.addEventListener('click', () => {
-        if (isRemoved) {
-            restoreEmail(email);
-        } else {
-            removeEmail(email);
-        }
-    });
+    if (actionBtn) {
+        actionBtn.addEventListener('click', () => {
+            if (isRemoved) {
+                restoreEmail(email);
+            } else {
+                removeEmail(email);
+            }
+        });
+    }
 
     return div;
 }
 
-// Update the recipients display
+// Update the combined recipients display
 function updateRecipientsDisplay() {
     if (!recipientsList || !recipientsCount) return;
-    
+
     recipientsList.innerHTML = '';
 
-    const activeEmails = emailList.filter(email => !removedEmails.has(email) && !manuallyAddedEmails.has(email));
+    const activeEmails = emailList.filter(email => !removedEmails.has(email));
     activeEmails.forEach(email => {
-        recipientsList.appendChild(createRecipientElement(email));
+        const isManual = manuallyAddedEmails.has(email);
+        recipientsList.appendChild(createRecipientElement(email, { isManual, isRemoved: false }));
     });
 
-    recipientsCount.innerHTML = `<b>${activeEmails.length + manuallyAddedEmails.size}</b> ${t('recipientsSelected')}`;
+    recipientsCount.innerHTML = `<b>${activeEmails.length}</b> ${t('recipientsSelected')}`;
 }
 
 // Update removed emails display
 function updateRemovedEmailsDisplay() {
     if (!removedEmailsList || !removedListSection) return;
-    
+
     removedEmailsList.innerHTML = '';
 
     if (removedEmails.size > 0) {
         removedListSection.style.display = 'block';
-        removedListSection.querySelector('h3').textContent = t('removedRecipientsTitle');
+        const titleEl = removedListSection.querySelector('h3');
+        if (titleEl) {
+            titleEl.textContent = t('removedRecipientsTitle');
+        }
         [...removedEmails].forEach(email => {
-            removedEmailsList.appendChild(createRecipientElement(email, true));
+            removedEmailsList.appendChild(createRecipientElement(email, { isRemoved: true, isManual: false }));
         });
     } else {
         removedListSection.style.display = 'none';
     }
 }
 
-// Update manual emails display
-function updateManualEmailsDisplay() {
-    if (!manualEmailsList || !manualListSection) return;
-    
-    manualEmailsList.innerHTML = '';
-
-    if (manuallyAddedEmails.size > 0) {
-        manualListSection.style.display = 'block';
-        manualListSection.querySelector('h3').textContent = t('manualRecipientsTitle');
-        [...manuallyAddedEmails].forEach(email => {
-            const div = document.createElement('div');
-            div.className = 'manual-email';
-            div.innerHTML = `
-                <span>${email}<span class="tag">Manual</span></span>
-                <div class="actions">
-                    <button class="btn-icon btn-danger" data-action="remove" title="Remove">×</button>
-                </div>
-            `;
-
-            const removeBtn = div.querySelector('[data-action="remove"]');
-            removeBtn.addEventListener('click', () => {
-                manuallyAddedEmails.delete(email);
-                emailList = emailList.filter(e => e !== email);
-                updateManualEmailsDisplay();
-                updateRecipientsDisplay();
-                showSuccess(t('removedFromManual', {email}));
-            });
-
-            manualEmailsList.appendChild(div);
-        });
-    } else {
-        manualListSection.style.display = 'none';
-    }
-}
-
 // Remove email from active list
 function removeEmail(email) {
-    removedEmails.add(email);
-    updateRecipientsDisplay();
-    updateRemovedEmailsDisplay();
-    showSuccess(t('removedFrom', {email}));
+    if (manuallyAddedEmails.has(email)) {
+        manuallyAddedEmails.delete(email);
+        emailList = emailList.filter(e => e !== email);
+        updateRecipientsDisplay();
+        showSuccess(t('removedFrom', { email }));
+    } else {
+        removedEmails.add(email);
+        updateRecipientsDisplay();
+        updateRemovedEmailsDisplay();
+        showSuccess(t('removedFrom', { email }));
+    }
 }
 
 // Restore email to active list
@@ -405,31 +346,32 @@ function restoreEmail(email) {
     removedEmails.delete(email);
     updateRecipientsDisplay();
     updateRemovedEmailsDisplay();
-    showSuccess(t('restoredTo', {email}));
+    showSuccess(t('restoredTo', { email }));
 }
 
 // Add new email manually
 function addNewEmail(email) {
-    if (!isValidEmail(email)) {
+    const trimmed = (email || '').trim();
+    if (!isValidEmail(trimmed)) {
         showError(t('invalidEmailError'));
         return;
     }
 
-    if (emailList.includes(email)) {
-        if (removedEmails.has(email)) {
-            restoreEmail(email);
-        } else {
-            showError(t('emailExistsError'));
+    if (emailList.includes(trimmed)) {
+        if (removedEmails.has(trimmed)) {
+            restoreEmail(trimmed);
+            if (newEmailInput) newEmailInput.value = '';
+            return;
         }
+        showError(t('emailExistsError'));
         return;
     }
 
-    manuallyAddedEmails.add(email);
-    emailList.push(email);
-    updateManualEmailsDisplay();
+    manuallyAddedEmails.add(trimmed);
+    emailList.push(trimmed);
     updateRecipientsDisplay();
     if (newEmailInput) newEmailInput.value = '';
-    showSuccess(t('addedTo', {email}));
+    showSuccess(t('addedTo', { email: trimmed }));
 }
 
 // Show success message
@@ -463,33 +405,31 @@ document.addEventListener('DOMContentLoaded', function() {
     recipientsCount = document.getElementById('recipientsCount');
     removedEmailsList = document.getElementById('removedEmails');
     removedListSection = document.getElementById('removedList');
-    manualEmailsList = document.getElementById('manualEmails');
-    manualListSection = document.getElementById('manualList');
-    replyToInput = document.getElementById('replyTo');
     subjectInput = document.getElementById('subject');
     emailContent = document.getElementById('emailContent');
     newEmailInput = document.getElementById('newEmail');
     addEmailBtn = document.getElementById('addEmail');
     sendEmailBtn = document.getElementById('sendEmail');
     statusMessage = document.getElementById('statusMessage');
-    
-    // Add event listeners
+
+    // Add manual email event listeners
     if (addEmailBtn) {
         addEmailBtn.addEventListener('click', () => {
-            const email = newEmailInput ? newEmailInput.value.trim() : '';
+            const email = newEmailInput ? newEmailInput.value : '';
             addNewEmail(email);
         });
     }
 
     if (newEmailInput) {
-        newEmailInput.addEventListener('keypress', (e) => {
+        newEmailInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                const email = newEmailInput.value.trim();
-                addNewEmail(email);
+                e.preventDefault();
+                addNewEmail(newEmailInput.value);
             }
         });
     }
 
+    // Send email button listener
     if (sendEmailBtn) {
         sendEmailBtn.addEventListener('click', function() {
             if (!mappedColumns) {
@@ -500,12 +440,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const activeEmails = emailList.filter(email => !removedEmails.has(email));
             if (activeEmails.length === 0) {
                 showError(t('noRecipientsError'));
-                return;
-            }
-
-            const replyTo = replyToInput ? replyToInput.value.trim() : '';
-            if (!replyTo || !isValidEmail(replyTo)) {
-                showError(t('invalidReplyToError'));
                 return;
             }
 
@@ -521,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const mailtoUrl = `mailto:${replyTo}?bcc=${activeEmails.join(',')}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(content)}`;
+            const mailtoUrl = `mailto:${activeEmails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(content)}`;
 
             if (window.parent && window.parent !== window) {
                 window.parent.open(mailtoUrl, '_blank');
@@ -532,10 +466,10 @@ document.addEventListener('DOMContentLoaded', function() {
             showSuccess(t('emailOpened'));
         });
     }
-    
+
     // Initialize language
     updateLanguage();
-    
+
     // Language switcher functionality
     const currentLangElement = document.querySelector('.current-lang');
     if (currentLangElement) {
@@ -543,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleDropdown();
         });
     }
-    
+
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
         const switcher = document.querySelector('.language-switcher');

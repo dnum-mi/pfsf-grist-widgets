@@ -295,14 +295,23 @@ body {
 .manual-add-section {
     display: flex;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .manual-input {
     flex-grow: 1;
 }
 
-.removed-list, .manual-list {
+.recipient-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.removed-list {
     margin-top: 16px;
     padding: 8px;
     background-color: #f6f8fa;
@@ -310,33 +319,27 @@ body {
     border-radius: 6px;
 }
 
-.removed-list h3, .manual-list h3 {
+.removed-list h3 {
     font-size: 14px;
     font-weight: 600;
     margin-bottom: 8px;
     color: #57606a;
 }
 
-.removed-emails, .manual-emails {
+.removed-emails {
     max-height: 150px;
     overflow-y: auto;
 }
 
-.manual-email {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    margin: 2px 0;
-    border-radius: 4px;
-    background-color: #ffffff;
-}
-
 .tag {
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 500;
     padding: 2px 6px;
     border-radius: 10px;
-    margin-left: 8px;
+    margin-left: 6px;
     background-color: #ddf4ff;
     color: #0969da;
+    border: 1px solid rgba(9, 105, 218, 0.2);
+    display: inline-block;
+    vertical-align: middle;
 }
