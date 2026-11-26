@@ -311,7 +311,13 @@
     }
 
     /* ── Tableau ── */
-    .rec-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .rec-table {
+      min-width: 100%;
+      width: max-content;
+      table-layout: fixed;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
     .rec-table caption {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
@@ -325,8 +331,13 @@
     .rec-table tbody tr           { transition: background .08s; }
     .rec-table tbody tr:hover td  { background: var(--hover-row); }
     .rec-table tbody td {
-      padding: 5px 10px; border-bottom: 1px solid var(--border); color: var(--text);
-      max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      padding: 5px 5px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .rec-table tbody tr:last-child td { border-bottom: none; }
 
@@ -939,9 +950,21 @@
     return groups;
   }
 
+  function computeColGroup(cols, records) {
+    const widths = cols.map(c => {
+      let maxLen = String(c).length;
+      for (let i = 0; i < records.length; i++) {
+        const t = cellTitle(records[i][c]);
+        if (t.length > maxLen) maxLen = t.length;
+      }
+      return Math.min(280, Math.max(65, Math.round(maxLen * 7.5)));
+    });
+    return `<colgroup>${widths.map(w => `<col style="width:${w}px">`).join('')}</colgroup>`;
+  }
+
   // ── 14. Rendu ─────────────────────────────────────────────
   function render() {
-  console.log("trigger render", render, groupBy);
+    console.log("trigger render", render, groupBy);
     Array.from(content.children).forEach(c => {
       if (c.id !== 'empty-state') c.remove();
     });
@@ -959,6 +982,7 @@
     emptyState.style.display = 'none';
     const groups      = getGroups();
     const displayCols = allColumns.filter(c => c !== groupBy);
+    const colGroupHtml = displayCols.length > 0 ? computeColGroup(displayCols, allRecords) : '';
 
     statsbar.classList.add('visible');
     statGroups.textContent  = groups.length;
@@ -1018,7 +1042,7 @@
       inner.className = 'group-body-inner';
       inner.innerHTML = displayCols.length === 0
         ? `<p class="only-group-col">${T.noOtherCol}</p>`
-        : buildTable(displayCols, group.records, labelRaw);
+        : buildTable(displayCols, group.records, labelRaw, colGroupHtml);
 
       body.appendChild(inner);
       card.appendChild(header);
@@ -1028,7 +1052,7 @@
     refreshBoolSection();
   }
 
-  function buildTable(cols, records, groupLabel) {
+  function buildTable(cols, records, groupLabel, colGroupHtml = '') {
     const thead = cols.map(c =>
       `<th scope="col" title="${esc(c)}">${esc(c)}</th>`
     ).join('');
@@ -1042,6 +1066,7 @@
     return `<div class="scroll-inner" tabindex="0">
     <table class="rec-table">
       <caption>${T.groupCaption} ${esc(groupLabel)}</caption>
+      ${colGroupHtml}
       <thead><tr>${thead}</tr></thead>
       <tbody>${tbody}</tbody>
     </table></div>`;
@@ -1055,6 +1080,7 @@
   }
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const URL_RE   = /^(https?:\/\/|www\.)[^\s]+$/i;
 
   function renderCell(val) {
     if (val == null || val === '')
@@ -1070,9 +1096,15 @@
     if (Array.isArray(val)) return esc(val.join(', '));
 
     const str = String(val).trim();
+
     if (EMAIL_RE.test(str)) {
       const safeEmail = esc(str);
       return `<a class="cell-link" href="mailto:${safeEmail}" onclick="event.stopPropagation()">${safeEmail}</a>`;
+    }
+
+    if (URL_RE.test(str)) {
+      const href = /^https?:\/\//i.test(str) ? str : 'https://' + str;
+      return `<a class="cell-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${esc(str)}</a>`;
     }
 
     return esc(str);
