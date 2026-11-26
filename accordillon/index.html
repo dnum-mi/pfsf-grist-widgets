@@ -462,9 +462,9 @@
     '#ec4899','#06b6d4','#84cc16','#f97316','#6366f1',
   ];
 
-  // Les couleurs sont interpolées dans un attribut style= construit en innerHTML :
-  // elles doivent être strictement validées, jamais échappées seulement.
-  const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+  const HEX_COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const URL_RE   = /^(https?:\/\/|www\.)[^\s]+$/i;
 
   function esc(s) {
     return String(s)
@@ -644,6 +644,8 @@
   let boolFmtKey = 'check';
   let maxGroupH  = 500;
   let selectedRowId = null;
+  let colSettings   = Object.create(null);
+  let ruleValuesByRowId = new Map();
 
   // ── 4. Refs DOM ───────────────────────────────────────────
   const groupSelect   = document.getElementById('group-select');
@@ -745,6 +747,7 @@
         btn.classList.add('selected');
         btn.setAttribute('aria-checked', 'true');
         grist.setOption('boolFmtKey', boolFmtKey);
+        console.log("buildBoolButtons render");
         render();
       });
       boolRow.appendChild(btn);
@@ -786,7 +789,9 @@
       input.addEventListener('change', () => {
         colColors[group.key] = input.value;
         swatch.style.background = input.value;
-        saveColors(); render();
+        saveColors();
+        console.log("refreshcolorgrid onchange render");
+        render();
       });
 
       wrap.appendChild(swatch);
@@ -806,7 +811,9 @@
         colColors[group.key] = def;
         input.value = def;
         swatch.style.background = def;
-        saveColors(); render();
+        saveColors();
+        console.log("refreshcolorgrid onclick render");
+        render();
       });
 
       row.appendChild(wrap);
@@ -841,8 +848,9 @@
 
   // ── 11. Grist ────────────────────────────────────────────
   grist.ready({
-    requiredAccess: 'read table',
+    requiredAccess: 'full',
     allowSelectBy: true,
+    includeColumns: 'all',
     columns: [{ name: 'visibleCols', title: 'Champs visibles', allowMultiple: true, optional: true }]
   });
 
@@ -868,34 +876,37 @@
       if (opts.colColors) colColors = sanitizeColors(opts.colColors);
     }
     buildBoolButtons();
+    loadColumnSettings();
+    console.log("render onOption");
     render();
   });
 
   grist.onRecords((records, mappings) => {
-  allRecords = records || [];
-  if (allRecords.length > 0) {
-    // Si Grist fournit la liste ordonnée des colonnes visibles (via mappings.visibleCols)
-    if (mappings && Array.isArray(mappings.visibleCols) && mappings.visibleCols.length > 0) {
-      allColumns = mappings.visibleCols;
-    } else {
-      allColumns = Object.keys(allRecords[0])
-        .filter(k => k !== 'id' && k !== 'manualSort');
+    allRecords = records || [];
+    if (allRecords.length > 0) {
+      if (mappings && Array.isArray(mappings.visibleCols) && mappings.visibleCols.length > 0) {
+        allColumns = mappings.visibleCols;
+      } else {
+        allColumns = Object.keys(allRecords[0])
+          .filter(k => k !== 'id' && k !== 'manualSort' && !k.startsWith('gristHelper_'));
+      }
+      rebuildColumnSelect();
+      loadColumnSettings();
     }
-    rebuildColumnSelect();
-  }
-  render();
-});
+    console.log("render onRecords");
+    render();
+  });
 
   content.addEventListener('click', (e) => {
-  const tr = e.target.closest('tr[data-row-id]');
-  if (!tr) return;
-  const rowId = Number(tr.dataset.rowId);
-  selectedRowId = rowId;
-  document.querySelectorAll('.rec-table tbody tr').forEach(row => {
-    row.classList.toggle('selected', row === tr);
+    const tr = e.target.closest('tr[data-row-id]');
+    if (!tr) return;
+    const rowId = Number(tr.dataset.rowId);
+    selectedRowId = rowId;
+    document.querySelectorAll('.rec-table tbody tr').forEach(row => {
+      row.classList.toggle('selected', row === tr);
+    });
+    grist.setCursorPos({ rowId });
   });
-  grist.setCursorPos({ rowId });
-});
 
   buildBoolButtons();
   initMaxHSlider();
@@ -1052,6 +1063,39 @@
     refreshBoolSection();
   }
 
+  function getCellStyle(rec, col) {
+    const st = colSettings[col];
+    if (!st) return '';
+    
+    let bg = st.fillColor;
+    let fg = st.textColor;
+
+    // Couleur d'une colonne Choix
+    const val = rec[col];
+    if (val && typeof val === 'string' && st.choiceOptions && st.choiceOptions[val]) {
+      if (st.choiceOptions[val].fillColor) bg = st.choiceOptions[val].fillColor;
+      if (st.choiceOptions[val].textColor) fg = st.choiceOptions[val].textColor;
+    }
+
+    // Règles conditionnelles (lues depuis le cache persistant par rowId)
+    const rowRules = ruleValuesByRowId.get(rec.id) || rec;
+    for (let i = 0; i < st.ruleColNames.length; i++) {
+      if (rowRules[st.ruleColNames[i]] === true && st.rulesOptions[i]) {
+        if (st.rulesOptions[i].fillColor) bg = st.rulesOptions[i].fillColor;
+        if (st.rulesOptions[i].textColor) fg = st.rulesOptions[i].textColor;
+      }
+    }
+
+    const css = [];
+    if (st.alignment && st.alignment !== 'left') css.push(`text-align:${st.alignment}`);
+    // if (rowRules["gristHelper_ConditionalRule3"])
+    //   console.log("cell style:", bg, fg);
+    if (bg) css.push(`background:${safeColor(bg, bg)}`);
+    if (fg) css.push(`color:${safeColor(fg, fg)}`);
+
+    return css.length ? ` style="${css.join(';')}"` : '';
+  }
+
   function buildTable(cols, records, groupLabel, colGroupHtml = '') {
     const thead = cols.map(c =>
       `<th scope="col" title="${esc(c)}">${esc(c)}</th>`
@@ -1060,7 +1104,8 @@
       const isSel = rec.id === selectedRowId ? ' class="selected"' : '';
       return `<tr data-row-id="${rec.id}"${isSel}>${cols.map(c => {
         const t = cellTitle(rec[c]);
-        return `<td${t ? ` title="${esc(t)}"` : ''}>${renderCell(rec[c])}</td>`;
+        const st = getCellStyle(rec, c);
+        return `<td${st}${t ? ` title="${esc(t)}"` : ''}>${renderCell(rec[c])}</td>`;
       }).join('')}</tr>`;
     }).join('');
     return `<div class="scroll-inner" tabindex="0">
@@ -1078,9 +1123,6 @@
     if (Array.isArray(val)) return val.join(', ');
     return String(val);
   }
-
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const URL_RE   = /^(https?:\/\/|www\.)[^\s]+$/i;
 
   function renderCell(val) {
     if (val == null || val === '')
@@ -1108,6 +1150,80 @@
     }
 
     return esc(str);
+  }
+
+  async function loadColumnSettings() {
+    console.log("loadColumnSettings");
+    try {
+      const tableId = await grist.getSelectedTableId();
+      if (!tableId) return;
+
+      const tables = await grist.docApi.fetchTable('_grist_Tables');
+      const tIdx   = tables.tableId.indexOf(tableId);
+      if (tIdx === -1) return;
+      const tableRef = tables.id[tIdx];
+
+      const cols   = await grist.docApi.fetchTable('_grist_Tables_column');
+      const fields = await grist.docApi.fetchTable('_grist_Views_section_field');
+
+      const idToColId = Object.create(null);
+      for (let i = 0; i < cols.id.length; i++) {
+        idToColId[cols.id[i]] = cols.colId[i];
+      }
+
+      const map = Object.create(null);
+      for (let i = 0; i < cols.id.length; i++) {
+        if (cols.parentId[i] !== tableRef) continue;
+        const colRef = cols.id[i];
+        const colId  = cols.colId[i];
+
+        let opts = {};
+        try { opts = JSON.parse(cols.widgetOptions[i] || '{}'); } catch (e) {}
+        let ruleIds = Array.isArray(cols.rules[i]) ? cols.rules[i].slice(1) : [];
+
+        // Si aucune règle au niveau de la table, chercher au niveau des vues (_grist_Views_section_field)
+        if (ruleIds.length === 0) {
+          for (let f = 0; f < fields.id.length; f++) {
+            if (fields.colRef[f] === colRef && Array.isArray(fields.rules[f]) && fields.rules[f].length > 1) {
+              ruleIds = fields.rules[f].slice(1);
+              try {
+                const fOpts = JSON.parse(fields.widgetOptions[f] || '{}');
+                if (fOpts.rulesOptions) opts.rulesOptions = fOpts.rulesOptions;
+              } catch (e) {}
+              break;
+            }
+          }
+        }
+
+        map[colId] = {
+          label:         cols.label[i] || colId,
+          alignment:     opts.alignment || 'left',
+          fillColor:     opts.fillColor || '',
+          textColor:     opts.textColor || '',
+          choiceOptions: opts.choiceOptions || null,
+          rulesOptions:  Array.isArray(opts.rulesOptions) ? opts.rulesOptions : [],
+          ruleColNames:  ruleIds.map(id => idToColId[id]).filter(Boolean)
+        };
+      }
+
+      // Stocke les valeurs des règles dans une Map persistante par rowId
+      const fullTable = await grist.docApi.fetchTable(tableId);
+      const ruleKeys  = Object.keys(fullTable).filter(k => k.startsWith('gristHelper_ConditionalRule'));
+      const nextRules = new Map();
+      for (let r = 0; r < fullTable.id.length; r++) {
+        const rowId = fullTable.id[r];
+        const vals  = {};
+        ruleKeys.forEach(rk => { vals[rk] = fullTable[rk][r]; });
+        nextRules.set(rowId, vals);
+      }
+
+      ruleValuesByRowId = nextRules;
+      colSettings       = map;
+      console.log("map", ruleValuesByRowId, map);
+      render();
+    } catch (err) {
+      console.error('Erreur chargement réglages colonnes:', err);
+    }
   }
 </script>
 </body>
