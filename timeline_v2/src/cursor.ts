@@ -14,50 +14,57 @@ export function buildCursor(
 ) {
   const cursorBox = document.createElement('div');
   cursorBox.append(document.createElement('sl-spinner'));
-  cursorBox.addEventListener('dblclick', async function (e) {
+  cursorBox.addEventListener('dblclick', async function () {
     cursorBox.classList.add('cursor-loading');
   });
   options.eventAdd.subscribe(() => cursorBox.classList.remove('cursor-loading'));
 
   const foreground = document.querySelector('.vis-center .vis-foreground') as HTMLElement;
+  if (!foreground) return;
+
   cursorBox.className = 'cursor-selection';
   foreground.appendChild(cursorBox);
+
+  let leftPoints: { left: number; width: number }[] = [];
+  let pendingRaf: number | null = null;
+  let lastMouseEvent: { clientX: number; target: HTMLElement } | null = null;
+
   foreground.addEventListener('mouseleave', function () {
+    if (pendingRaf) {
+      cancelAnimationFrame(pendingRaf);
+      pendingRaf = null;
+    }
+    lastMouseEvent = null;
     cursorBox.style.display = 'none';
   });
 
-  foreground.addEventListener('mousemove', function (e: MouseEvent) {
-    const target = e.target as HTMLElement;
-    if (target === cursorBox) {
-      return;
-    }
-    // If the target is inside the cursorBox also do nothing.
-    if (cursorBox.contains(target)) {
+  const updateCursor = () => {
+    pendingRaf = null;
+    if (!lastMouseEvent) return;
+
+    const { clientX, target } = lastMouseEvent;
+    if (target === cursorBox || cursorBox.contains(target)) {
       return;
     }
 
-    // Get the x position in regards of the parent.
-    const x = e.clientX - foreground.getBoundingClientRect().left;
-
-    // Make sure target has vis-group class.
     if (!target.classList.contains('vis-group')) {
       cursorBox.style.display = 'none';
       return;
     }
-    cursorBox.style.display = 'grid';
 
-    // Now get the element at that position but in another div.
+    const fgRect = foreground.getBoundingClientRect();
+    const x = clientX - fgRect.left;
+
     const anotherDiv = document.querySelector(
       'div.vis-panel.vis-background.vis-vertical > div.vis-time-axis.vis-background'
-    )!;
-
-    const anotherDivPos = anotherDiv.getBoundingClientRect().left;
+    ) as HTMLElement | null;
+    if (!anotherDiv) {
+      cursorBox.style.display = 'none';
+      return;
+    }
 
     if (!leftPoints.length) {
-      const children = Array.from(anotherDiv.children);
-      // Group by week number, element will have class like vis-week4
-
-      // Get current scale from timeline.
+      const children = Array.from(anotherDiv.children) as HTMLElement[];
       const weekFromElement = (el: Element) => {
         const classList = Array.from(el.classList).filter(
           (f) => !['vis-even', 'vis-odd', 'vis-minor', 'vis-major'].includes(f)
@@ -65,56 +72,62 @@ export function buildCursor(
         return classList.join(' ');
       };
 
-      // Group by class attribute.
       const grouped = from(children)
         .groupBy((e) => weekFromElement(e))
         .toArray();
 
-      // Map to { left: the left of the first element in group, width: total width of the group }
-      const points = grouped.map((group) => {
-        const left = group.first().getBoundingClientRect().left;
-        const width = group.reduce((acc, el) => acc + el.getBoundingClientRect().width, 0);
-        const adjustedWidth = left - anotherDivPos;
-        return { left: adjustedWidth, width };
+      leftPoints = grouped.map((group) => {
+        const first = group.first() as HTMLElement;
+        const left = first.offsetLeft;
+        const width = group.reduce((acc, el) => acc + (el as HTMLElement).offsetWidth, 0);
+        return { left, width };
       });
-
-      leftPoints = points;
     }
 
-    // Find the one that is closest to the x position, so the first after.
-    const index = leftPoints.findLastIndex((c) => c.left < x);
+    if (!leftPoints.length) {
+      cursorBox.style.display = 'none';
+      return;
+    }
 
-    // Find its index.
-    const closest = leftPoints[index];
+    const index = leftPoints.findLastIndex((c) => c.left <= x);
+    const closest = index >= 0 ? leftPoints[index] : leftPoints[0];
+    if (!closest) {
+      cursorBox.style.display = 'none';
+      return;
+    }
 
-    // Now get the element from the other div.
-
-    // Now reposition selection.
+    cursorBox.style.display = 'grid';
     cursorBox.style.left = `${closest.left}px`;
     cursorBox.style.width = `${closest.width}px`;
     cursorBox.style.transform = '';
+
     try {
       if (cursorBox.parentElement !== target) {
         target.prepend(cursorBox);
       }
     } catch (ex) {}
+  };
+
+  foreground.addEventListener('mousemove', function (e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target === cursorBox || cursorBox.contains(target)) {
+      return;
+    }
+    lastMouseEvent = { clientX: e.clientX, target };
+    if (!pendingRaf) {
+      pendingRaf = requestAnimationFrame(updateCursor);
+    }
   });
 
-  // Helper to track cursor box on the timeline while scrolling.
-  let leftPoints = [] as { left: number; width: number }[];
   timeline.on('rangechange', ({ byUser, event }) => {
     leftPoints = [];
-    if (!byUser) {
+    if (!byUser || !event || !event.deltaX) {
       return;
     }
-    if (!event || !event.deltaX) {
-      return;
-    }
-    const deltaX = event.deltaX;
-    cursorBox.style.transform = `translateX(${deltaX}px)`;
+    cursorBox.style.transform = `translateX(${event.deltaX}px)`;
   });
+
   timeline.on('rangechanged', () => {
-    // Try to parse transform, and get the x value.
     const transform = cursorBox.style.transform;
     if (!transform) {
       return;
@@ -124,9 +137,7 @@ export function buildCursor(
       return;
     }
     const x = parseFloat(match[1]);
-
-    // Update left property of the cursorBox, by adding the delta.
-    const left = parseFloat(cursorBox.style.left);
+    const left = parseFloat(cursorBox.style.left) || 0;
     cursorBox.style.left = `${left + x}px`;
     cursorBox.style.transform = '';
   });

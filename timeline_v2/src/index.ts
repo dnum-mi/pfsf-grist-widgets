@@ -23,7 +23,7 @@ import { from } from 'fromit';
 import { observable } from 'grainjs';
 import moment from 'moment-timezone';
 import { memoizeWith } from 'ramda';
-import { distinct, filter, skip, Subject } from 'rxjs';
+import { distinctUntilChanged, filter, skip, Subject } from 'rxjs';
 import VanillaContextMenu from 'vanilla-context-menu';
 import { DataSet, Timeline, TimelineOptions } from 'vis-timeline/standalone';
 
@@ -73,6 +73,7 @@ const cmdAddBlank = new Command<any>();
 // Two indexes to quickly find group name by id and vice versa.
 const byStart = new Map<string, Item[]>();
 const byEnd = new Map<string, Item[]>();
+const itemsByGroup = new Map<number | string, Item[]>();
 const key = memoizeWith(
   (...args: any[]) => args.join(),
   (date: Date | string, days: number = 0) => {
@@ -177,25 +178,22 @@ const options: TimelineOptions = {
 
     const { start, end } = data;
 
-    const all = items.get() as Item[];
-
     div.classList.remove('item-clash');
-    const iStart = new Date(start).getTime();
-    const iEnd = new Date(end).getTime();
-    for (const other of all) {
-      if (other.group !== item.group) {
-        continue;
+    const groupItems = itemsByGroup.get(item.group);
+    if (groupItems && groupItems.length > 1) {
+      const iStart = new Date(start).getTime();
+      const iEnd = new Date(end).getTime();
+      for (const other of groupItems) {
+        if (other.id === item.id) {
+          continue;
+        }
+        const oStart = new Date(other.start).getTime();
+        const oEnd = new Date(other.end).getTime();
+        if (iStart < oEnd && iEnd > oStart) {
+          div.classList.add('item-clash');
+          break;
+        }
       }
-      if (other.id === item.id) {
-        continue;
-      }
-      const oStart = new Date(other.start).getTime();
-      const oEnd = new Date(other.end).getTime();
-      if (iStart >= oEnd || iEnd <= oStart) {
-        continue;
-      }
-      div.classList.add('item-clash');
-      break;
     }
 
     item.element = div;
@@ -440,10 +438,6 @@ grist.onRecords(async (recs: any[], maps: any) => {
   // First compare mappings with those before, if they are different, we need to fetch
   // columns again.
 
-  setTimeout(() => {
-    document.body.classList.add('slow');
-  }, 80);
-
   const areMappingsNew = newMappings(maps);
   if (areMappingsNew || !DATA.schema) {
     DATA.schema = await fetchSchema();
@@ -473,8 +467,7 @@ const onRecord = new Subject<number>();
 grist.onRecord(({ id }) => onRecord.next(id));
 onRecord
   .pipe(
-    distinct(), // ignore duplicates
-    skip(1), // ignore initial one
+    distinctUntilChanged(), // ignore consecutive duplicate cursor moves
     filter((id) => timeline.getSelection()[0] !== id)
   )
   .subscribe((id) => {
@@ -671,6 +664,7 @@ function renderItems() {
 
   byStart.clear();
   byEnd.clear();
+  itemsByGroup.clear();
 
   const newItems = from(recs as any[])
     .filter((r) => getFrom(r) !== null)
@@ -682,8 +676,12 @@ function renderItems() {
       if (!byEnd.has(item.endKey)) {
         byEnd.set(item.endKey, []);
       }
+      if (!itemsByGroup.has(item.group)) {
+        itemsByGroup.set(item.group, []);
+      }
       byStart.get(item.startKey)!.push(item);
       byEnd.get(item.endKey)!.push(item);
+      itemsByGroup.get(item.group)!.push(item);
       return item;
     });
 
@@ -705,9 +703,17 @@ function renderItems() {
 
   const array = changedItems.toArray();
   oldRecs.clear();
-  array.forEach((x) => oldRecs.set(x.id, x));
+  newItems.forEach((x) => oldRecs.set(x.id, x));
 
-  itemSet.update(array);
+  const currentIds = new Set(newItems.map((x) => x.id).toArray());
+  const removedIds = itemSet.getIds().filter((id) => !currentIds.has(id));
+  if (removedIds.length > 0) {
+    itemSet.remove(removedIds);
+  }
+
+  if (array.length > 0) {
+    itemSet.update(array);
+  }
 }
 
 const formatCurrency = new Intl.NumberFormat('en-US', {
@@ -739,7 +745,9 @@ function calcGroup(rec: any): string {
 function renderGroups() {
   const existingGroups = groupSet.getIds();
   const groupsToRemove = existingGroups.filter((id) => !idToName.has(id));
-  groupSet.remove(groupsToRemove);
+  if (groupsToRemove.length > 0) {
+    groupSet.remove(groupsToRemove);
+  }
   const rawGroups = Array.from(idToName.entries()).map((c) => ({
     id: c[0],
     content: c[1],
@@ -749,7 +757,9 @@ function renderGroups() {
   }));
 
   groupSet.update(rawGroups);
-  timeline.setGroups(groupSet);
+  if (timeline.groupsData !== groupSet) {
+    timeline.setGroups(groupSet);
+  }
 }
 
 function bindConfig() {
@@ -892,57 +902,87 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.getElementById('settingsButton')?.addEventListener('click', openSettingsDrawer);
 
-  // Collision prevention for major time axis labels
-  function preventMajorOverlap() {
-    const majorLabels = Array.from(
-      document.querySelectorAll<HTMLElement>('.vis-time-axis .vis-text.vis-major')
-    ).sort((a, b) => a.offsetLeft - b.offsetLeft);
+  // Collision prevention for major time axis labels with zero-layout-thrashing
+  let preventOverlapRaf: number | null = null;
+  function schedulePreventMajorOverlap() {
+    if (preventOverlapRaf) return;
+    preventOverlapRaf = requestAnimationFrame(() => {
+      preventOverlapRaf = null;
+      preventMajorOverlap();
+    });
+  }
 
-    if (majorLabels.length <= 1) {
-      majorLabels.forEach((el) => {
-        el.style.visibility = 'visible';
-        el.style.maxWidth = '';
-      });
+  function preventMajorOverlap() {
+    const rawLabels = Array.from(
+      document.querySelectorAll<HTMLElement>('.vis-time-axis .vis-text.vis-major')
+    );
+    if (rawLabels.length <= 1) {
+      for (const el of rawLabels) {
+        if (el.style.visibility !== 'visible') el.style.visibility = 'visible';
+        if (el.style.maxWidth !== '') el.style.maxWidth = '';
+      }
       return;
     }
 
-    let lastRight = -Infinity;
-    for (let i = 0; i < majorLabels.length; i++) {
-      const label = majorLabels[i];
-      const left = label.offsetLeft;
-      const nextLeft = i < majorLabels.length - 1 ? majorLabels[i + 1].offsetLeft : Infinity;
-      const availableWidth = nextLeft - left - 12;
+    // Read Phase: batch read all offsetLeft and offsetWidth before any writes
+    const labelData = rawLabels
+      .map((el) => ({
+        el,
+        left: el.offsetLeft,
+        width: el.offsetWidth
+      }))
+      .sort((a, b) => a.left - b.left);
 
-      if (left < lastRight + 8 || availableWidth < 35) {
-        label.style.visibility = 'hidden';
+    // Compute Phase in pure JS memory
+    interface StylePlan {
+      el: HTMLElement;
+      visibility: string;
+      maxWidth: string;
+    }
+    const plans: StylePlan[] = [];
+    let lastRight = -Infinity;
+
+    for (let i = 0; i < labelData.length; i++) {
+      const item = labelData[i];
+      const nextLeft = i < labelData.length - 1 ? labelData[i + 1].left : Infinity;
+      const availableWidth = nextLeft - item.left - 12;
+
+      if (item.left < lastRight + 8 || availableWidth < 35) {
+        plans.push({ el: item.el, visibility: 'hidden', maxWidth: '' });
       } else {
-        label.style.visibility = 'visible';
-        if (Number.isFinite(availableWidth) && availableWidth > 0) {
-          label.style.maxWidth = `${availableWidth}px`;
-        } else {
-          label.style.maxWidth = '';
-        }
-        lastRight = left + label.offsetWidth;
+        const maxWidth = Number.isFinite(availableWidth) && availableWidth > 0 ? `${availableWidth}px` : '';
+        plans.push({ el: item.el, visibility: 'visible', maxWidth });
+        lastRight = item.left + item.width;
+      }
+    }
+
+    // Write Phase: batch apply styles only if changed
+    for (const plan of plans) {
+      if (plan.el.style.visibility !== plan.visibility) {
+        plan.el.style.visibility = plan.visibility;
+      }
+      if (plan.el.style.maxWidth !== plan.maxWidth) {
+        plan.el.style.maxWidth = plan.maxWidth;
       }
     }
   }
 
-  timeline.on('rangechange', preventMajorOverlap);
-  timeline.on('rangechanged', preventMajorOverlap);
+  timeline.on('rangechange', schedulePreventMajorOverlap);
+  timeline.on('rangechanged', schedulePreventMajorOverlap);
 
   const axisObserver = new MutationObserver(() => {
-    preventMajorOverlap();
+    schedulePreventMajorOverlap();
   });
   const timeAxisEl = container.querySelector('.vis-time-axis');
   if (timeAxisEl) {
-    axisObserver.observe(timeAxisEl, { childList: true, subtree: true });
+    axisObserver.observe(timeAxisEl, { childList: true, subtree: false });
   } else {
     const initObserver = new MutationObserver(() => {
       const el = container.querySelector('.vis-time-axis');
       if (el) {
         initObserver.disconnect();
-        axisObserver.observe(el, { childList: true, subtree: true });
-        preventMajorOverlap();
+        axisObserver.observe(el, { childList: true, subtree: false });
+        schedulePreventMajorOverlap();
       }
     });
     initObserver.observe(container, { childList: true, subtree: true });

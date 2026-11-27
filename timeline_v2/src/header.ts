@@ -23,9 +23,8 @@ export class HeaderMonitor {
     if (!panel || !header) return;
 
     if (collapsed.get()) {
-      header.style.width = '48px';
+      header.style.width = '0px';
       header.style.setProperty('--left-width', '0px');
-      anchorHeader();
       return;
     }
 
@@ -127,6 +126,19 @@ function initHeaderTop(timeline: Timeline, cmdAddBlank: Command) {
   const visualization = document.getElementById('visualization');
   if (visualization) {
     dom.update(visualization, dom.cls('collapsed', collapsed));
+
+    let expandBtn = visualization.querySelector('.collapsed-expand-btn') as HTMLElement;
+    if (!expandBtn) {
+      expandBtn = dom(
+        'button',
+        dom.cls('collapsed-expand-btn'),
+        dom.prop('title', 'Déplier le panneau des groupes'),
+        dom.prop('aria-label', 'Déplier le panneau des groupes'),
+        dom('sl-icon', dom.prop('name', 'chevron-bar-right')),
+        dom.on('click', () => collapsed.set(false))
+      );
+      visualization.appendChild(expandBtn);
+    }
   }
 
   collapsed.addListener((isCollapsed) => {
@@ -142,12 +154,12 @@ function initHeaderTop(timeline: Timeline, cmdAddBlank: Command) {
 
     if (isCollapsed) {
       if (vis) {
-        vis.style.setProperty('--group-header-width', '48px');
-        vis.style.setProperty('--group-max-width', '48px');
-        vis.style.setProperty('--grid-template-columns', '48px');
+        vis.style.setProperty('--group-header-width', '0px');
+        vis.style.setProperty('--group-max-width', '0px');
+        vis.style.setProperty('--grid-template-columns', '0px');
       }
       if (header) {
-        header.style.width = '48px';
+        header.style.width = '0px';
       }
     } else {
       if (header) {
@@ -162,12 +174,15 @@ function initHeaderTop(timeline: Timeline, cmdAddBlank: Command) {
             columnsDiv.style.setProperty('grid-template-columns', savedExpandedStyles);
           }
         }
+      } else {
+        recalculateHeader();
       }
-      recalculateHeader();
     }
 
     timeline.redraw();
-    anchorHeader();
+    if (!isCollapsed) {
+      anchorHeader();
+    }
   });
 }
 
@@ -257,8 +272,8 @@ export function recalculateHeader() {
       return Math.max(w, defaultColMin);
     });
 
-    // Inspect rendered rows for content width
-    const templates = Array.from(document.querySelectorAll('.group-template'));
+    // Inspect rendered rows for content width (sample first 30 rows for fast performance)
+    const templates = Array.from(document.querySelectorAll('.group-template')).slice(0, 30);
     for (const row of templates) {
       const parts = Array.from(row.children).slice(0, numCols);
       parts.forEach((part, idx) => {
@@ -292,6 +307,9 @@ export function recalculateHeader() {
 }
 
 export function anchorHeader() {
+  if (collapsed.get()) {
+    return;
+  }
   const store = anchorHeader as any as {
     lastHeight: number;
     lastTopHeight: number;

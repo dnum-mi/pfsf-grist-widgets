@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="widget-version" content="%VITE_APP_VERSION%" />
     <title>Timeline Grist Native</title>
-    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <script src="./grist-plugin-api.js"></script>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body class="loading">
@@ -121,35 +121,35 @@
       <div class="status-divider"></div>
 
       <div class="status-group">
-        <sl-tooltip content="Zoom avant (agrandir la vue temporelle)">
+        <sl-tooltip content="Zoom avant (agrandir la vue temporelle)" hoist placement="top">
           <sl-icon-button
             id="zoomInButton"
             name="zoom-in"
             label="Zoom avant"
           ></sl-icon-button>
         </sl-tooltip>
-        <sl-tooltip content="Zoom arrière (réduire la vue temporelle)">
+        <sl-tooltip content="Zoom arrière (réduire la vue temporelle)" hoist placement="top">
           <sl-icon-button
             id="zoomOutButton"
             name="zoom-out"
             label="Zoom arrière"
           ></sl-icon-button>
         </sl-tooltip>
-        <sl-tooltip content="Ajuster le zoom (vue quotidienne confortable)">
+        <sl-tooltip content="Ajuster le zoom (vue quotidienne confortable)" hoist placement="top">
           <sl-icon-button
             id="fitButton"
             name="border-all"
             label="Ajuster la vue"
           ></sl-icon-button>
         </sl-tooltip>
-        <sl-tooltip content="Afficher tous les événements (zoom global)">
+        <sl-tooltip content="Afficher tous les événements (zoom global)" hoist placement="top">
           <sl-icon-button
             id="allButton"
             name="arrows-collapse-vertical"
             label="Tout afficher"
           ></sl-icon-button>
         </sl-tooltip>
-        <sl-tooltip content="Paramètres du widget">
+        <sl-tooltip content="Paramètres du widget" hoist placement="top">
           <sl-icon-button
             id="settingsButton"
             name="gear"
