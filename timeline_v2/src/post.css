@@ -53,6 +53,8 @@
 .vis-panel.vis-left {
   box-sizing: border-box;
   min-width: var(--group-header-width, 212px);
+  max-width: var(--group-header-width, 212px);
+  width: var(--group-header-width, 212px);
 }
 
 #visualization.collapsed .vis-panel.vis-left {
@@ -76,6 +78,7 @@
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  contain: layout style;
   transition:
     box-shadow 0.15s ease,
     border-color 0.15s ease,
@@ -110,6 +113,7 @@
 }
 
 /* Clash items */
+.vis-item.item-clash,
 .vis-item:has(.item-clash),
 .item-clash {
   background-color: #fff1f2 !important;
@@ -118,6 +122,7 @@
   border-style: dashed;
 }
 
+.vis-item.vis-selected.item-clash,
 .vis-item.vis-selected:has(.item-clash) {
   background-color: #f43f5e !important;
   border-color: #be123c !important;
@@ -143,12 +148,14 @@
   background-color: rgba(0, 0, 0, 0.15);
 }
 
+.vis-item.item-right,
 .vis-item:has(.item-right) {
   border-right: 0px;
   border-top-right-radius: 0px;
   border-bottom-right-radius: 0px;
 }
 
+.vis-item.item-left,
 .vis-item:has(.item-left) {
   border-top-left-radius: 0px;
   border-bottom-left-radius: 0px;
@@ -182,7 +189,8 @@
   display: grid;
   grid-template-columns: var(--grid-template-columns, repeat(12, max-content));
   min-width: var(--group-header-width, 212px);
-  max-width: var(--group-max-width, auto);
+  max-width: var(--group-header-width, auto);
+  width: var(--group-header-width, auto);
   box-sizing: border-box;
 }
 
@@ -197,6 +205,7 @@
 
 .vis-foreground .vis-group {
   border-bottom: 1px solid #e2e8f0;
+  contain: layout style;
 }
 
 .vis-foreground .vis-group:last-child {
@@ -207,10 +216,7 @@
   border-bottom: 1px solid #e2e8f0;
   cursor: pointer;
   background-color: #ffffff;
-  transition:
-    background-color 0.15s ease,
-    box-shadow 0.15s ease,
-    color 0.15s ease;
+  transition: background-color 0.1s ease;
 }
 
 .group-template:hover {
@@ -262,7 +268,7 @@
   align-items: center;
   justify-content: center;
   color: #94a3b8;
-  transition: all 0.15s ease;
+  transition: background-color 0.1s ease, color 0.1s ease;
   margin: auto;
   cursor: pointer;
   flex-shrink: 0;
@@ -391,6 +397,108 @@
 
 .resizer sl-icon {
   font-size: 14px;
+}
+
+/* Draggable Resizer Handle between Group Panel and Timeline */
+.panel-resizer-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--group-header-width, 212px);
+  width: 10px;
+  margin-left: -5px;
+  z-index: 105;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: background-color 0.15s ease;
+}
+
+.panel-resizer-handle .handle-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background-color: transparent;
+  transition: background-color 0.15s ease, width 0.15s ease, left 0.15s ease;
+  pointer-events: none;
+}
+
+.panel-resizer-handle .handle-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 30px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transition: opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  pointer-events: none;
+}
+
+.panel-resizer-handle .handle-grip span {
+  display: block;
+  width: 4px;
+  height: 2px;
+  background-color: #94a3b8;
+  border-radius: 1px;
+}
+
+.panel-resizer-handle:hover {
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
+.panel-resizer-handle:hover .handle-line {
+  background-color: #10b981;
+}
+
+.panel-resizer-handle:hover .handle-grip {
+  opacity: 1;
+  border-color: #10b981;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+}
+
+.panel-resizer-handle.is-dragging {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+
+.panel-resizer-handle.is-dragging .handle-line {
+  background-color: #059669;
+  width: 3px;
+  left: 3.5px;
+}
+
+.panel-resizer-handle.is-dragging .handle-grip {
+  opacity: 1;
+  border-color: #059669;
+  background-color: #ecfdf5;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+#visualization.collapsed .panel-resizer-handle {
+  display: none !important;
+}
+
+body.resizing-panel,
+body.resizing-panel * {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .btn-add-record::part(base) {

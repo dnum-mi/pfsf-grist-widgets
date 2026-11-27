@@ -72,14 +72,28 @@ export function buildCursor(
         return classList.join(' ');
       };
 
+      const getElemLeft = (el: HTMLElement): number => {
+        const tr = el.style.transform;
+        if (tr) {
+          const m = tr.match(/translate\(([-\d.]+)px/);
+          if (m) return parseFloat(m[1]);
+        }
+        return parseFloat(el.style.left) || 0;
+      };
+
+      const getElemWidth = (el: HTMLElement): number => {
+        const w = parseFloat(el.style.width);
+        return !isNaN(w) && w > 0 ? w : 40;
+      };
+
       const grouped = from(children)
         .groupBy((e) => weekFromElement(e))
         .toArray();
 
       leftPoints = grouped.map((group) => {
         const first = group.first() as HTMLElement;
-        const left = first.offsetLeft;
-        const width = group.reduce((acc, el) => acc + (el as HTMLElement).offsetWidth, 0);
+        const left = getElemLeft(first);
+        const width = group.reduce((acc, el) => acc + getElemWidth(el as HTMLElement), 0);
         return { left, width };
       });
     }
@@ -96,10 +110,20 @@ export function buildCursor(
       return;
     }
 
-    cursorBox.style.display = 'grid';
-    cursorBox.style.left = `${closest.left}px`;
-    cursorBox.style.width = `${closest.width}px`;
-    cursorBox.style.transform = '';
+    const targetLeft = `${closest.left}px`;
+    const targetWidth = `${closest.width}px`;
+    if (cursorBox.style.left !== targetLeft) {
+      cursorBox.style.left = targetLeft;
+    }
+    if (cursorBox.style.width !== targetWidth) {
+      cursorBox.style.width = targetWidth;
+    }
+    if (cursorBox.style.display !== 'grid') {
+      cursorBox.style.display = 'grid';
+    }
+    if (cursorBox.style.transform !== '') {
+      cursorBox.style.transform = '';
+    }
 
     try {
       if (cursorBox.parentElement !== target) {
@@ -121,13 +145,17 @@ export function buildCursor(
 
   timeline.on('rangechange', ({ byUser, event }) => {
     leftPoints = [];
-    if (!byUser || !event || !event.deltaX) {
+    if (!byUser || !event || !event.deltaX || cursorBox.style.display === 'none') {
       return;
     }
     cursorBox.style.transform = `translateX(${event.deltaX}px)`;
   });
 
   timeline.on('rangechanged', () => {
+    if (cursorBox.style.display === 'none') {
+      cursorBox.style.transform = '';
+      return;
+    }
     const transform = cursorBox.style.transform;
     if (!transform) {
       return;

@@ -79,7 +79,224 @@ let headerTopInitialized = false;
 let savedExpandedWidth = 220;
 let savedExpandedStyles = '';
 
+let customPanelWidth: number | null = null;
+let naturalColumnWidths: number[] = [];
+let activeTimeline: Timeline | null = null;
+let resizerInitialized = false;
+let saveOptionTimeout: any = null;
+
+export function getCustomPanelWidth(): number | null {
+  return customPanelWidth;
+}
+
+export function setCustomPanelWidth(width: number | null) {
+  customPanelWidth = typeof width === 'number' && width > 0 ? width : null;
+  if (customPanelWidth !== null) {
+    applyPanelWidth(customPanelWidth, activeTimeline || undefined);
+  } else {
+    recalculateHeader();
+    if (activeTimeline) {
+      activeTimeline.redraw();
+    }
+  }
+}
+
+function debouncedSaveWidth(width: number) {
+  if (saveOptionTimeout) {
+    clearTimeout(saveOptionTimeout);
+  }
+  saveOptionTimeout = setTimeout(() => {
+    saveWidthNow(width);
+  }, 400);
+}
+
+function saveWidthNow(width: number) {
+  if (saveOptionTimeout) {
+    clearTimeout(saveOptionTimeout);
+    saveOptionTimeout = null;
+  }
+  if (typeof grist !== 'undefined' && grist.setOption) {
+    grist.setOption('groupPanelWidth', Math.round(width));
+  }
+}
+
+export function applyPanelWidth(width: number, timeline?: Timeline) {
+  if (collapsed.get()) return;
+
+  const visualization = document.getElementById('visualization');
+  const columnsDiv = document.querySelector('.group-header-columns') as HTMLElement;
+  const header = document.getElementById('groupHeader');
+  if (!visualization || !columnsDiv) return;
+
+  const visRect = visualization.getBoundingClientRect();
+  const visWidth = visRect.width || window.innerWidth;
+
+  const columnElements = Array.from(columnsDiv.children);
+  const numDataCols = Math.max(1, columnElements.length - 1);
+  const actionColWidth = 38;
+
+  // Min and max bounds:
+  // Min: 38px action col + at least 35px per data col (at least 90px total)
+  const minWidth = Math.max(90, actionColWidth + numDataCols * 35);
+  // Max: at most 75% of visualization width, leaving at least 25% for timeline
+  const maxWidth = Math.max(minWidth + 60, Math.floor(visWidth * 0.75));
+  const clampedWidth = Math.min(maxWidth, Math.max(minWidth, Math.round(width)));
+
+  const dataWidth = Math.max(20, clampedWidth - actionColWidth);
+
+  let colWidths: number[] = [];
+  if (naturalColumnWidths.length === numDataCols) {
+    const sumNatural = naturalColumnWidths.reduce((a, b) => a + b, 0);
+    if (sumNatural > 0) {
+      let allocated = 0;
+      for (let i = 0; i < numDataCols - 1; i++) {
+        const w = Math.max(24, Math.round(dataWidth * (naturalColumnWidths[i] / sumNatural)));
+        colWidths.push(w);
+        allocated += w;
+      }
+      colWidths.push(Math.max(24, dataWidth - allocated));
+    }
+  }
+
+  if (colWidths.length !== numDataCols) {
+    const perCol = Math.floor(dataWidth / numDataCols);
+    let allocated = 0;
+    for (let i = 0; i < numDataCols - 1; i++) {
+      colWidths.push(perCol);
+      allocated += perCol;
+    }
+    colWidths.push(Math.max(24, dataWidth - allocated));
+  }
+
+  const colStyles = colWidths.map((w) => `${w}px`).join(' ') + ` ${actionColWidth}px`;
+
+  columnsDiv.style.setProperty('grid-template-columns', colStyles);
+  visualization.style.setProperty('--grid-template-columns', colStyles);
+  visualization.style.setProperty('--group-header-width', `${clampedWidth}px`);
+  visualization.style.setProperty('--group-first-width', `${colWidths[0]}px`);
+  visualization.style.removeProperty('--group-max-width');
+
+  if (header) {
+    header.style.width = `${clampedWidth}px`;
+  }
+
+  savedExpandedWidth = clampedWidth;
+  savedExpandedStyles = colStyles;
+
+  const tl = timeline || activeTimeline;
+  if (tl) {
+    tl.redraw();
+  }
+  anchorHeader();
+}
+
+function initPanelResizer(timeline: Timeline) {
+  activeTimeline = timeline;
+  if (resizerInitialized) return;
+  resizerInitialized = true;
+
+  const visualization = document.getElementById('visualization');
+  if (!visualization) return;
+
+  let handle = visualization.querySelector('.panel-resizer-handle') as HTMLElement;
+  if (!handle) {
+    handle = dom(
+      'div',
+      dom.cls('panel-resizer-handle'),
+      dom.prop('title', 'Glisser pour ajuster la largeur (Double-clic pour réinitialiser)'),
+      dom('div', dom.cls('handle-line')),
+      dom(
+        'div',
+        dom.cls('handle-grip'),
+        dom('span'),
+        dom('span'),
+        dom('span')
+      )
+    );
+    visualization.appendChild(handle);
+  }
+
+  let isDragging = false;
+  let startX = 0;
+  let startWidth = 0;
+  let rafPending = false;
+  let pendingWidth = 0;
+
+  handle.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (e.button !== 0 || collapsed.get()) return;
+
+    isDragging = true;
+    startX = e.clientX;
+    const currentHeaderWidth = document.getElementById('groupHeader')?.getBoundingClientRect().width ?? savedExpandedWidth;
+    startWidth = savedExpandedWidth > 0 ? savedExpandedWidth : currentHeaderWidth;
+    pendingWidth = startWidth;
+
+    headerMonitor.pause();
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {}
+    handle.classList.add('is-dragging');
+    document.body.classList.add('resizing-panel');
+
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  handle.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!isDragging) return;
+
+    const deltaX = e.clientX - startX;
+    pendingWidth = startWidth + deltaX;
+
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (!isDragging) return;
+        applyPanelWidth(pendingWidth, timeline);
+        customPanelWidth = savedExpandedWidth;
+        debouncedSaveWidth(savedExpandedWidth);
+      });
+    }
+  });
+
+  const onPointerUp = (e: PointerEvent) => {
+    if (!isDragging) return;
+    isDragging = false;
+
+    handle.classList.remove('is-dragging');
+    document.body.classList.remove('resizing-panel');
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    headerMonitor.resume();
+
+    // Final application and instant save to Grist options
+    applyPanelWidth(pendingWidth || startWidth, timeline);
+    customPanelWidth = savedExpandedWidth;
+    saveWidthNow(savedExpandedWidth);
+  };
+
+  handle.addEventListener('pointerup', onPointerUp);
+  handle.addEventListener('pointercancel', onPointerUp);
+
+  handle.addEventListener('dblclick', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    customPanelWidth = null;
+    if (typeof grist !== 'undefined' && grist.setOption) {
+      grist.setOption('groupPanelWidth', null);
+    }
+    recalculateHeader();
+    if (timeline) {
+      timeline.redraw();
+    }
+  });
+}
+
 function initHeaderTop(timeline: Timeline, cmdAddBlank: Command) {
+  activeTimeline = timeline;
   if (headerTopInitialized) return;
   headerTopInitialized = true;
 
@@ -168,6 +385,9 @@ function initHeaderTop(timeline: Timeline, cmdAddBlank: Command) {
       if (vis && savedExpandedWidth > 0) {
         vis.style.setProperty('--group-header-width', `${savedExpandedWidth}px`);
         vis.style.removeProperty('--group-max-width');
+        if (header) {
+          header.style.width = `${savedExpandedWidth}px`;
+        }
         if (savedExpandedStyles) {
           vis.style.setProperty('--grid-template-columns', savedExpandedStyles);
           if (columnsDiv) {
@@ -197,8 +417,10 @@ export function rewriteHeader({
 }) {
   try {
     headerMonitor.pause();
+    activeTimeline = timeline;
 
     initHeaderTop(timeline, cmdAddBlank);
+    initPanelResizer(timeline);
 
     const headerRight = document.querySelector('#groupHeader .bottom .right')! as HTMLElement;
 
@@ -284,6 +506,14 @@ export function recalculateHeader() {
       });
     }
 
+    naturalColumnWidths = [...colWidths];
+
+    // If user has a saved custom width, apply it now!
+    if (customPanelWidth !== null && customPanelWidth > 0) {
+      applyPanelWidth(customPanelWidth, activeTimeline || undefined);
+      return;
+    }
+
     const actionColWidth = 38;
     const colStyles = colWidths.map((w) => `${Math.ceil(w)}px`).join(' ') + ` ${actionColWidth}px`;
 
@@ -299,6 +529,11 @@ export function recalculateHeader() {
     visualization.style.setProperty('--group-header-width', `${Math.ceil(totalWidth)}px`);
     visualization.style.setProperty('--group-first-width', `${Math.ceil(firstColWidth)}px`);
     visualization.style.removeProperty('--group-max-width');
+
+    const header = document.getElementById('groupHeader');
+    if (header) {
+      header.style.width = `${Math.ceil(totalWidth)}px`;
+    }
 
     anchorHeader();
   } finally {
@@ -340,7 +575,9 @@ export function anchorHeader() {
   }
 
   // Align topHeight to Vis-Timeline major time axis label if available
-  const majorEl = document.querySelector('.vis-time-axis .vis-text.vis-major') as HTMLElement;
+  const majorEl = document.querySelector(
+    '.vis-time-axis .vis-text.vis-major:not(.vis-measure)'
+  ) as HTMLElement;
   let topHeight = majorEl ? Math.round(majorEl.getBoundingClientRect().height) : 0;
   if (topHeight <= 0 || topHeight >= relativeTop) {
     topHeight = Math.round(relativeTop * 0.52);

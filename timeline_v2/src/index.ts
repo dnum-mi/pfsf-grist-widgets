@@ -1,6 +1,6 @@
 import './widget-info.ts';
 import { buildCursor } from './cursor';
-import { headerMonitor, recalculateHeader, rewriteHeader } from './header';
+import { headerMonitor, recalculateHeader, rewriteHeader, setCustomPanelWidth } from './header';
 import {
   Command,
   DATA,
@@ -43,15 +43,23 @@ const confirmChanges = observable(false);
 const currentScale = observable('auto');
 const items = observable([] as Item[]);
 const groupSelected = observable(null as any);
+let previouslySelectedGroupEl: Element | null = null;
 groupSelected.addListener((sel) => {
-  document.querySelectorAll('.group-template').forEach((el) => {
-    el.classList.remove('group-selected');
-  });
+  if (previouslySelectedGroupEl) {
+    previouslySelectedGroupEl.classList.remove('group-selected');
+    previouslySelectedGroupEl = null;
+  } else {
+    document.querySelectorAll('.group-template.group-selected').forEach((el) => {
+      el.classList.remove('group-selected');
+    });
+  }
   if (sel !== null && sel !== undefined) {
     const selId = typeof sel === 'object' ? sel.id : sel;
-    document.querySelectorAll(`.group-item-${selId}`).forEach((el) => {
-      el.classList.add('group-selected');
-    });
+    const targetEl = document.querySelector(`.group-item-${selId}`);
+    if (targetEl) {
+      targetEl.classList.add('group-selected');
+      previouslySelectedGroupEl = targetEl;
+    }
   }
 });
 const focusOnSelect = observable(false);
@@ -138,8 +146,14 @@ grist.ready({
   ]
 });
 
+// Reusable template for group options button to eliminate innerHTML parsing during fast scroll
+const DOTS_SVG_WRAPPER = document.createElement('div');
+DOTS_SVG_WRAPPER.innerHTML = '<svg class="group-dots-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>';
+const DOTS_SVG_TEMPLATE = DOTS_SVG_WRAPPER.firstElementChild as SVGElement;
+
 // Configuration for the Timeline
-const options: TimelineOptions = {
+const options: TimelineOptions & { throttleRedraw?: number } = {
+  throttleRedraw: 16,
   groupOrder: function (a, b) {
     if (a.id === 0) {
       // This is last group, so it should bgroupHeadere last.
@@ -153,10 +167,10 @@ const options: TimelineOptions = {
 
   /**
    * Item template is used to render each item in the timeline. Notice, this is run many times,
-   * even when scrolling or moving.
+   * even when scrolling or moving. Clash and adjacency classes are precomputed in renderItems.
    */
   template: function (item, element, data) {
-    const parts = data.content.split('|');
+    const parts = (data.content || '').split('|');
     const text = parts[1] ? `${parts[0]} (${parts[1] || 'no subject'})` : parts[0];
     const div = document.createElement('div');
     div.className = 'item-template';
@@ -164,37 +178,6 @@ const options: TimelineOptions = {
     const span = document.createElement('span');
     span.innerText = text;
     div.appendChild(span);
-
-    const someoneOnLeft = byEnd.get(startKey(item, -1)) ?? [];
-    const someoneOnRight = byStart.get(endKey(item, +1)) ?? [];
-
-    div.classList.add('item-template');
-    if (someoneOnLeft.length) {
-      div.classList.add('item-left');
-    }
-    if (someoneOnRight.length) {
-      div.classList.add('item-right');
-    }
-
-    const { start, end } = data;
-
-    div.classList.remove('item-clash');
-    const groupItems = itemsByGroup.get(item.group);
-    if (groupItems && groupItems.length > 1) {
-      const iStart = new Date(start).getTime();
-      const iEnd = new Date(end).getTime();
-      for (const other of groupItems) {
-        if (other.id === item.id) {
-          continue;
-        }
-        const oStart = new Date(other.start).getTime();
-        const oEnd = new Date(other.end).getTime();
-        if (iStart < oEnd && iEnd > oStart) {
-          div.classList.add('item-clash');
-          break;
-        }
-      }
-    }
 
     item.element = div;
     return div;
@@ -323,9 +306,9 @@ const options: TimelineOptions = {
       return div;
     });
 
-    // Add 3 dots menu.
+    // Add 3 dots menu using lightweight cloned SVG (avoids HTML parser overhead and custom element instances)
     const menuBtn = document.createElement('div');
-    menuBtn.innerHTML = '<sl-icon name="three-dots"></sl-icon>';
+    menuBtn.appendChild(DOTS_SVG_TEMPLATE.cloneNode(true));
     menuBtn.className = 'center cursor group-menu-btn';
     menuBtn.title = `${fullGroupName} — Options / Détails`;
     menuBtn.setAttribute('aria-label', `${fullGroupName} options`);
@@ -404,9 +387,9 @@ const options: TimelineOptions = {
     return moment(date); // Use moment with the 'en-gb' locale setting
   },
   snap: function (date) {
-    const snappedDate = moment(date);
-    snappedDate.startOf('day');
-    return snappedDate.toDate();
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
   },
   margin: {
     item: 4,
@@ -618,6 +601,9 @@ function compareItems(a: any, b: any) {
   if (a.type !== b.type) {
     return false;
   }
+  if (a.className !== b.className) {
+    return false;
+  }
   return true;
 }
 
@@ -670,22 +656,59 @@ function renderItems() {
     .filter((r) => getFrom(r) !== null)
     .map((r) => {
       const item = recToItem(r);
+      const g = item.group ?? 1;
       if (!byStart.has(item.startKey)) {
         byStart.set(item.startKey, []);
       }
       if (!byEnd.has(item.endKey)) {
         byEnd.set(item.endKey, []);
       }
-      if (!itemsByGroup.has(item.group)) {
-        itemsByGroup.set(item.group, []);
+      if (!itemsByGroup.has(g)) {
+        itemsByGroup.set(g, []);
       }
       byStart.get(item.startKey)!.push(item);
       byEnd.get(item.endKey)!.push(item);
-      itemsByGroup.get(item.group)!.push(item);
+      itemsByGroup.get(g)!.push(item);
       return item;
     });
 
-  items.set(newItems.toArray());
+  const itemsList = newItems.toArray();
+
+  // Precompute clashes per group in O(N log N)
+  for (const groupItems of itemsByGroup.values()) {
+    if (groupItems.length <= 1) continue;
+    const parsed = groupItems.map((it) => ({
+      it,
+      start: new Date(it.start).getTime(),
+      end: new Date(it.end).getTime()
+    }));
+    parsed.sort((a, b) => a.start - b.start);
+
+    for (let j = 0; j < parsed.length; j++) {
+      const a = parsed[j];
+      for (let k = j + 1; k < parsed.length; k++) {
+        const b = parsed[k];
+        if (b.start >= a.end) {
+          break;
+        }
+        (a.it as any)._hasClash = true;
+        (b.it as any)._hasClash = true;
+      }
+    }
+  }
+
+  // Precompute classes directly on items
+  for (const item of itemsList) {
+    const someoneOnLeft = byEnd.get(startKey(item, -1))?.length;
+    const someoneOnRight = byStart.get(endKey(item, +1))?.length;
+    const classes = ['item_' + item.id];
+    if ((item as any)._hasClash) classes.push('item-clash');
+    if (someoneOnLeft) classes.push('item-left');
+    if (someoneOnRight) classes.push('item-right');
+    item.className = classes.join(' ');
+  }
+
+  items.set(itemsList);
 
   const changedItems =
     oldRecs.size > 0
@@ -706,7 +729,7 @@ function renderItems() {
   newItems.forEach((x) => oldRecs.set(x.id, x));
 
   const currentIds = new Set(newItems.map((x) => x.id).toArray());
-  const removedIds = itemSet.getIds().filter((id) => !currentIds.has(id));
+  const removedIds = itemSet.getIds().filter((id) => !currentIds.has(Number(id)));
   if (removedIds.length > 0) {
     itemSet.remove(removedIds);
   }
@@ -744,7 +767,7 @@ function calcGroup(rec: any): string {
 
 function renderGroups() {
   const existingGroups = groupSet.getIds();
-  const groupsToRemove = existingGroups.filter((id) => !idToName.has(id));
+  const groupsToRemove = existingGroups.filter((id) => !idToName.has(id as number));
   if (groupsToRemove.length > 0) {
     groupSet.remove(groupsToRemove);
   }
@@ -757,7 +780,7 @@ function renderGroups() {
   }));
 
   groupSet.update(rawGroups);
-  if (timeline.groupsData !== groupSet) {
+  if ((timeline as any).groupsData !== groupSet) {
     timeline.setGroups(groupSet);
   }
 }
@@ -903,6 +926,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('settingsButton')?.addEventListener('click', openSettingsDrawer);
 
   // Collision prevention for major time axis labels with zero-layout-thrashing
+  const majorTextWidthCache = new Map<string, number>();
   let preventOverlapRaf: number | null = null;
   function schedulePreventMajorOverlap() {
     if (preventOverlapRaf) return;
@@ -912,9 +936,35 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function getMajorLeft(el: HTMLElement): number {
+    const tr = el.style.transform;
+    if (tr) {
+      const m = tr.match(/translate\(([-\d.]+)px/);
+      if (m) return parseFloat(m[1]);
+    }
+    return parseFloat(el.style.left) || 0;
+  }
+
+  function getMajorWidth(el: HTMLElement): number {
+    const text = el.textContent || '';
+    let w = majorTextWidthCache.get(text);
+    if (w === undefined) {
+      const styleW = parseFloat(el.style.width);
+      if (!isNaN(styleW) && styleW > 0) {
+        w = styleW;
+      } else {
+        w = el.offsetWidth;
+      }
+      if (w > 0) majorTextWidthCache.set(text, w);
+    }
+    return w || 40;
+  }
+
   function preventMajorOverlap() {
     const rawLabels = Array.from(
-      document.querySelectorAll<HTMLElement>('.vis-time-axis .vis-text.vis-major')
+      document.querySelectorAll<HTMLElement>(
+        '.vis-time-axis .vis-text.vis-major:not(.vis-measure)'
+      )
     );
     if (rawLabels.length <= 1) {
       for (const el of rawLabels) {
@@ -924,12 +974,12 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    // Read Phase: batch read all offsetLeft and offsetWidth before any writes
+    // Read Phase: purely memory/transform based
     const labelData = rawLabels
       .map((el) => ({
         el,
-        left: el.offsetLeft,
-        width: el.offsetWidth
+        left: getMajorLeft(el),
+        width: getMajorWidth(el)
       }))
       .sort((a, b) => a.left - b.left);
 
@@ -1057,20 +1107,21 @@ showAddButton.addListener((value: boolean) => {
   if (el && el.checked !== value) el.checked = value;
 });
 
-grist.onOptions((options: any) => {
-  if (options?.editCard !== undefined) {
+function applyGristOptions(options: any) {
+  if (!options) return;
+  if (options.editCard !== undefined) {
     editCard.set(Boolean(options.editCard));
   }
-  if (options?.confirmChanges !== undefined) {
+  if (options.confirmChanges !== undefined) {
     confirmChanges.set(Boolean(options.confirmChanges));
   }
-  if (options?.focusOnSelect !== undefined) {
+  if (options.focusOnSelect !== undefined) {
     focusOnSelect.set(Boolean(options.focusOnSelect));
   }
-  if (options?.showAddButton !== undefined) {
+  if (options.showAddButton !== undefined) {
     showAddButton.set(Boolean(options.showAddButton));
   }
-  if (options?.timeScale !== undefined) {
+  if (options.timeScale !== undefined) {
     currentScale.set(options.timeScale);
     if (options.timeScale === 'auto') {
       timeline.setOptions({
@@ -1086,7 +1137,20 @@ grist.onOptions((options: any) => {
     const select = document.getElementById('timeline:timeAxis.scale') as HTMLSelectElement | null;
     if (select) select.value = options.timeScale;
   }
-});
+  if (options.groupPanelWidth !== undefined) {
+    const val = Number(options.groupPanelWidth);
+    if (!isNaN(val) && val > 0) {
+      setCustomPanelWidth(val);
+    } else if (options.groupPanelWidth === null) {
+      setCustomPanelWidth(null);
+    }
+  }
+}
+
+grist.onOptions(applyGristOptions);
+if (typeof grist.getOptions === 'function') {
+  grist.getOptions().then(applyGristOptions).catch(() => {});
+}
 
 function zip<T, V>(a: T[], b: V[]): [T, V][] {
   return a.map((e, i) => [e, b[i]]);
