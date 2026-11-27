@@ -155,9 +155,6 @@ git push origin main --follow-tags
 
 ---
 
-## Credits & License
+## Crédits
 
-- Created for the Grist community
-- Special thanks to **aude**, **astranchet** and **nataliemisasi** for their feedback and improvement suggestions!
-- License: MIT
-
+Ce widget est basé sur le travail d'[amandinedug](https://github.com/amandinedug) issu du dépôt [grist-custom-widgets (batch-emailing)](https://github.com/amandinedug/grist-custom-widgets/tree/main/batch-emailing).
