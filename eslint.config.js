@@ -5,7 +5,9 @@ const req = (function () {
   const candidates = [
     process.cwd() + '/package.json',
     process.cwd() + '/accordillon/package.json',
-    process.cwd() + '/batch-emailing/package.json'
+    process.cwd() + '/batch-emailing/package.json',
+    process.cwd() + '/timeline/package.json',
+    process.cwd() + '/timeline_v2/package.json'
   ];
   for (const c of candidates) {
     if (existsSync(c)) {
@@ -21,6 +23,11 @@ const req = (function () {
 
 const js = req('@eslint/js');
 const globals = req('globals');
+
+let tsParser = null;
+try {
+  tsParser = req('@typescript-eslint/parser');
+} catch {}
 
 export default [
   js.configs.recommended,
@@ -47,6 +54,38 @@ export default [
       'no-console': 'off'
     }
   },
+  ...(tsParser
+    ? [
+        {
+          files: ['**/*.ts'],
+          languageOptions: {
+            parser: tsParser,
+            parserOptions: {
+              ecmaVersion: 'latest',
+              sourceType: 'module'
+            },
+            globals: {
+              ...globals.browser,
+              grist: 'readonly',
+              __APP_VERSION__: 'readonly'
+            }
+          },
+          rules: {
+            'no-unused-vars': [
+              'warn',
+              {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+                caughtErrorsIgnorePattern: '^_'
+              }
+            ],
+            'no-undef': 'off',
+            'no-empty': ['error', { allowEmptyCatch: true }],
+            'no-console': 'off'
+          }
+        }
+      ]
+    : []),
   {
     ignores: [
       '**/node_modules/**',

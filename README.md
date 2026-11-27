@@ -10,16 +10,7 @@ Collection de widgets personnalisés pour [Grist](https://grist.numerique.gouv.f
 | ----------------------------------------------------------- | --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
 | [**Accordillon**](./accordillon/)                           | Vue tableau groupée et pliable avec tri et couleurs personnalisées    | Read table / Full | `https://dnum-mi.github.io/pfsf-grist-widgets/accordillon/dist/`         |
 | [**Batch Emailing**](./batch-emailing/)                     | Composition et envoi groupé d'emails (gestion CCI, filtres, bilingue) | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/batch-emailing/dist/`      |
-| [**Timeline**](./timeline/)                                 | Vue chronologique et Gantt interactif avec drag & drop et zoom        | Full              | `https://dnum-mi.github.io/pfsf-grist-widgets/timeline/dist/`            |
-| [**Gestionnaire de réunions**](./FR/gestionnaire-reunions/) | Kanban, calendrier, participants, jours fériés et congés              | Full              | `https://dnum-mi.github.io/pfsf-grist-widgets/FR/gestionnaire-reunions/` |
-| [**Compteur de lignes**](./FR/compteur-lignes/)             | Compteur dynamique avec 10 variantes de couleur                       | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/FR/compteur-lignes/`       |
-| [**DSFR Compteur**](./DSFR/dsfr-compteur/)                  | Compteur respectant la charte graphique de l'État                     | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-compteur/`       |
-| [**DSFR En-tête**](./DSFR/dsfr-en-tete/)                    | Bloc marque officiel Marianne / République Française                  | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-en-tete/`        |
-| [**DSFR FAQ**](./DSFR/dsfr-faq/)                            | FAQ interactive en accordéons avec support Markdown                   | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-faq/`            |
-| [**DSFR Dropdown**](./DSFR/dsfr-drop-down/)                 | Menu déroulant synchronisé entre plusieurs pages                      | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-drop-down/`      |
-| [**URL Renderer**](./url-renderer/)                         | Lecteur d'URL et documents web dans une iframe                        | Read table        | `https://dnum-mi.github.io/pfsf-grist-widgets/url-renderer/`             |
-
-> ⚠️ **Note DSFR** : Les composants du dossier [`DSFR/`](./DSFR/) sont strictement réservés aux services de l'État français (circulaire n°6411-SG du 7 juillet 2023).
+| [**Timeline Grist Native**](./timeline_v2/)           | Vue chronologique avancée (TypeScript, Shoelace, GrainJS & réactive)  | Full              | `https://dnum-mi.github.io/pfsf-grist-widgets/timeline_v2/dist/`         |
 
 ---
 
@@ -53,12 +44,44 @@ npm run dev
 # -> http://localhost:5174/ (accordillon)
 # -> http://localhost:5175/ (batch-emailing)
 # -> http://localhost:5176/ (timeline)
+# -> http://localhost:5177/ (timeline_v2)
 
 # 4. Linter les sources
 npm run lint
 
 # 5. Compiler pour la production (génère dist/index.html autonome dans le widget)
 npm run build
+```
+
+---
+
+## 🔄 Cycle de développement & déploiement
+
+```mermaid
+flowchart TD
+    subgraph Dev ["1. Développement local"]
+        A["Édition des sources (src/)"] --> B["Serveur Vite local (npm run dev)"]
+        B --> C["Test en direct dans Grist (http://localhost:517x/)"]
+        C --> D{"Validation fonctionnelle"}
+        D -->|Modifications| A
+        D -->|Validé| E["Qualité du code (npm run lint && npm run format)"]
+    end
+
+    subgraph Release ["2. Versionnement & Build"]
+        E --> F["Incrémentation SemVer (npm version patch | minor | major)"]
+        F --> G["Compilation de production (npm run build)"]
+        G --> H["Bundle unique autonome (dist/index.html)"]
+        H --> I["Contrôle local (npm run preview)"]
+    end
+
+    subgraph Deploy ["3. Déploiement & Intégration Grist"]
+        I --> J["Publication Git (git push origin main --follow-tags)"]
+        J --> K["Déploiement GitHub Pages (CI/CD)"]
+        K --> L1["Option A : URL hébergée HTTPS (GitHub Pages)"]
+        H -.->|Copie directe du code| L2["Option B : Custom Widget Builder (hors ligne)"]
+        L1 --> M["Widget actif dans Grist"]
+        L2 --> M
+    end
 ```
 
 ---
@@ -78,7 +101,7 @@ Chaque widget possède son propre cycle de version (SemVer) :
 
 - **Source unique** : `package.json` (`version` et `grist.version`).
 - **Métadonnées** : Balise HTML `<meta name="widget-version" content="X.Y.Z" />` injectée au build, et runtime `window.__WIDGET__.version`.
-- **En production** : Version visible discrètement dans l'interface (panneau d'engrenage pour `accordillon`, pied de page pour `batch-emailing`, en-tête pour `timeline`).
+- **En production** : Version visible discrètement dans l'interface.
 - **En développement (`npm run dev`)** :
   - Badge orange `🛠️ DEV vX.Y.Z` bien en vue dans l'en-tête / barre d'outils.
   - Titre de la page préfixé par `[DEV]`.
@@ -90,4 +113,3 @@ Chaque widget possède son propre cycle de version (SemVer) :
   npm run build
   git push origin main --follow-tags
   ```
-
