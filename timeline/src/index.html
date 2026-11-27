@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="widget-version" content="%VITE_APP_VERSION%" />
+    <title>Timeline</title>
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to timeline</a>
+
+    <header class="app-header">
+      <div class="header-title-block">
+        <div class="title-row">
+          <h1>Timeline</h1>
+          <span class="widget-version" id="widget-version">v%VITE_APP_VERSION%</span>
+          <span id="dev-badge" class="badge-dev" style="display: none"></span>
+        </div>
+        <p class="subtitle">Drag a bar to move it, drag its edges to resize.</p>
+      </div>
+      <div class="toolbar">
+        <div class="btn-group" role="group" aria-label="Zoom level">
+          <button type="button" data-zoom="day" aria-pressed="false">Day</button>
+          <button type="button" data-zoom="week" aria-pressed="false">Week</button>
+          <button type="button" data-zoom="month" aria-pressed="true">Month</button>
+          <button type="button" data-zoom="quarter" aria-pressed="false">Quarter</button>
+        </div>
+        <button type="button" class="today-btn" id="scroll-today">Today</button>
+      </div>
+    </header>
+
+    <div id="loader" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Loading timeline…</span>
+    </div>
+
+    <div id="error-banner" role="alert">
+      <span id="error-text">Something went wrong.</span>
+      <button type="button" id="error-dismiss">Dismiss</button>
+    </div>
+
+    <p id="kbd-instructions" class="sr-only">
+      With a task bar focused: Enter or Space opens its details. Left and Right arrow keys move the
+      task by one day. Shift plus Left or Right resizes the end date. Alt plus Left or Right resizes
+      the start date.
+    </p>
+
+    <div
+      class="modal-overlay"
+      id="task-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="task-modal-title"
+      hidden
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="task-modal-title"></h2>
+          <button type="button" class="modal-close" id="task-modal-close" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body" id="task-modal-body"></div>
+        <div class="modal-footer">
+          <span class="modal-footer-dot" aria-hidden="true"></span>
+          Changes save automatically
+        </div>
+      </div>
+    </div>
+
+    <main id="main">
+      <div id="empty-state">
+        Map <strong>Start date</strong> and <strong>End date</strong> in the widget's config panel
+        (the ⚙️ icon) to get started. <strong>Colour by</strong>, <strong>Group by</strong> and the
+        extra field lists are optional.
+        <pre id="debug-info"></pre>
+      </div>
+      <div class="timeline-scroll hidden" id="timeline-scroll">
+        <div class="timeline-inner" id="timeline-inner"></div>
+      </div>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

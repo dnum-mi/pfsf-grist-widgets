@@ -1,0 +1,32 @@
+{
+  "name": "@pfsf/widget-batch-emailing",
+  "version": "1.1.0",
+  "description": "Grist custom widget for batch emailing with BCC support",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "version": "node -e \"const f='./package.json',p=JSON.parse(require('fs').readFileSync(f));p.grist.version=p.version;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\\n')\" && git add package.json"
+  },
+  "grist": {
+    "name": "Batch Emailing",
+    "widgetId": "@pfsf/widget-batch-emailing",
+    "version": "1.1.0",
+    "published": true,
+    "accessLevel": "read table",
+    "renderAfterReady": true,
+    "description": "Widget de composition et d'envoi groupé d'emails avec gestion CCI"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.5.0",
+    "vite": "^6.1.0",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}

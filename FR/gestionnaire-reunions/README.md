@@ -27,7 +27,7 @@ Un widget pour gérer vos réunions directement dans Grist, sans quitter votre b
 ### Option 1 : URL directe
 
 1. Dans votre document Grist, ajoutez un widget personnalisé (⊕ → Custom URL)
-2. Collez l'URL : `https://amandinedug.github.io/grist-custom-widgets/FR/gestionnaire-reunions/`
+2. Collez l'URL : `https://dnum-mi.github.io/pfsf-grist-widgets/FR/gestionnaire-reunions/`
 3. Définissez le niveau d'accès sur **Full document access**
 
 ### Option 2 : Installation manuelle

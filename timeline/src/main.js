@@ -1,693 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Timeline</title>
-<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #ffffff;
-    --bg-secondary: #f6f5f4;
-    --border: #e5e3df;
-    --border-strong: #c8c4be;
-    --border-soft: #ede9e4;
-    --text: #37352f;
-    --text-heading: #1a1a1a;
-    --text-secondary: #5d5b54;
-    --text-tertiary: #787671;
-    --text-muted: #a4a097;
-    --accent: #5645d4;
-    --today: #e03131;
-    --success: #1aae39;
-    --radius: 6px;
-    --radius-lg: 12px;
-    --shadow: 0 1px 2px rgba(15,15,15,0.08);
-    --shadow-modal: 0 24px 48px -8px rgba(15,15,15,0.2);
-    --font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    --row-h: 2.875rem;
+import './widget-info.js';
 
-    /* named colours, matching Grist/Notion's own choice-colour palette */
-    --prop-gray-bg: #e3e2e0;   --prop-gray-solid: #8f8e8a;   --prop-gray-text: #4f4d48;
-    --prop-blue-bg: #b7d3e1;   --prop-blue-solid: #0b6f99;   --prop-blue-text: #1c4f66;
-    --prop-brown-bg: #eee0da;  --prop-brown-solid: #674b3f;  --prop-brown-text: #5f4739;
-    --prop-green-bg: #b8d7d3;  --prop-green-solid: #117b6d;  --prop-green-text: #1c5a4f;
-    --prop-orange-bg: #f4d5b6; --prop-orange-solid: #d8740e; --prop-orange-text: #8a4d17;
-    --prop-pink-bg: #e8bed7;   --prop-pink-solid: #b22a7b;   --prop-pink-text: #7c2a5c;
-    --prop-purple-bg: #d2c6e3; --prop-purple-solid: #6940a5; --prop-purple-text: #492f7c;
-    --prop-red-bg: #f6c6c7;    --prop-red-solid: #e14647;    --prop-red-text: #8a2b2c;
-    --prop-yellow-bg: #f6e5b3; --prop-yellow-solid: #dfac00; --prop-yellow-text: #7a6212;
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    font-family: var(--font);
-    color: var(--text);
-    background: var(--bg);
-    font-size: 1rem;
-  }
-
-  body { padding: 1rem 1.25rem 1.5rem; }
-
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .skip-link {
-    position: absolute;
-    top: -100px;
-    left: 0;
-    z-index: 200;
-    background: var(--accent);
-    color: #fff;
-    padding: 0.5rem 0.875rem;
-    border-radius: var(--radius);
-    font-size: 0.875rem;
-  }
-  .skip-link:focus { top: 0.5rem; left: 0.5rem; }
-
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  h1 { font-size: 0.9375rem; font-weight: 600; color: var(--text-heading); line-height: 1.2; margin: 0; }
-  h2 { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); margin: 0 0 0.5rem; font-weight: 600; }
-
-  header.app-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .subtitle { font-size: 0.75rem; color: var(--text-tertiary); margin: 0.0625rem 0 0; }
-
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .btn-group {
-    display: inline-flex;
-    gap: 0.125rem;
-    background: var(--bg-secondary);
-    padding: 0.1875rem;
-    border-radius: 0.5rem;
-  }
-
-  .btn-group button {
-    font-family: var(--font);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    padding: 0.375rem 0.75rem;
-    border: none;
-    border-radius: 0.375rem;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-  .btn-group button[aria-pressed="true"] {
-    background: var(--bg);
-    color: var(--text-heading);
-    box-shadow: var(--shadow);
-  }
-  .btn-group button:hover:not([aria-pressed="true"]) { color: var(--text); }
-
-  .today-btn {
-    font-family: var(--font);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    padding: 0.4375rem 0.875rem;
-    border: 1px solid var(--border-strong);
-    border-radius: 0.5rem;
-    background: var(--bg);
-    color: var(--text-heading);
-    cursor: pointer;
-  }
-  .today-btn:hover { background: var(--bg-secondary); }
-
-  #loader {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
-    padding: 0.75rem 0;
-  }
-  #loader.hidden { display: none; }
-  .spinner {
-    width: 0.875rem; height: 0.875rem;
-    border: 2px solid var(--border-strong);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  #error-banner {
-    display: none;
-    background: #fdf0ef;
-    border: 1px solid #f3c8c3;
-    color: #a13a24;
-    padding: 0.625rem 0.875rem;
-    border-radius: var(--radius);
-    font-size: 0.8125rem;
-    margin-bottom: 0.75rem;
-  }
-  #error-banner.visible { display: block; }
-  #error-banner button {
-    margin-left: 0.75rem;
-    background: none;
-    border: none;
-    color: inherit;
-    text-decoration: underline;
-    cursor: pointer;
-    font-size: inherit;
-    font-family: var(--font);
-  }
-
-  #empty-state {
-    display: none;
-    padding: 2rem 1rem;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    border: 1px dashed var(--border-strong);
-    border-radius: var(--radius-lg);
-  }
-  #empty-state.visible { display: block; }
-  #empty-state code {
-    background: var(--bg-secondary);
-    padding: 0.05rem 0.3rem;
-    border-radius: 3px;
-    font-size: 0.8125rem;
-  }
-  #debug-info {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    background: var(--bg-secondary);
-    border-radius: var(--radius);
-    font-size: 0.6875rem;
-    text-align: left;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: var(--text-secondary);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  }
-  #debug-info:empty { display: none; }
-
-  .timeline-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-  }
-  .timeline-scroll.hidden { display: none; }
-
-  .timeline-inner {
-    position: relative;
-    min-width: 100%;
-  }
-
-  .ruler-row {
-    display: flex;
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    height: 2.9375rem;
-  }
-
-  .sticky-group {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    display: flex;
-    flex-shrink: 0;
-    background: var(--bg);
-  }
-  .ruler-row .sticky-group { z-index: 4; }
-
-  .sticky-col {
-    flex-shrink: 0;
-    background: inherit;
-    border-right: 1px solid var(--border-soft);
-    padding: 0.25rem 0.625rem;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-  }
-  .sticky-col.header {
-    height: 100%;
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
-    font-weight: 400;
-    display: flex;
-    align-items: center;
-    position: relative;
-  }
-  .col-resize {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 8px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 5;
-    touch-action: none;
-  }
-  .col-resize::after {
-    content: "";
-    position: absolute;
-    top: 15%;
-    right: 3px;
-    width: 2px;
-    height: 70%;
-    background: transparent;
-    border-radius: 1px;
-  }
-  .col-resize:hover::after { background: var(--border-strong); }
-  .colhead-row {
-    display: flex;
-    height: 2rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .colhead-row .sticky-col.header { border-right: 1px solid var(--border-soft); }
-  .sticky-col.name {
-    font-size: 0.8125rem;
-    color: var(--text);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .sticky-col.extra {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .task-row:hover .sticky-group,
-  .task-row:hover .sticky-col { background: var(--bg-secondary); }
-
-  .ruler-ticks {
-    position: relative;
-    height: 2.9375rem;
-  }
-
-  .month-band {
-    position: absolute;
-    top: 0;
-    height: 1.5rem;
-    line-height: 1.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text);
-    padding-left: 0.5rem;
-    border-left: 1px solid var(--border);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .tick {
-    position: absolute;
-    top: 1.5rem;
-    bottom: 0;
-    border-left: 1px solid var(--border-soft);
-  }
-  .tick-label {
-    position: absolute;
-    top: 1.5rem;
-    height: 1.4375rem;
-    line-height: 1.4375rem;
-    font-size: 0.625rem;
-    color: var(--text-tertiary);
-    padding-left: 0.3125rem;
-    white-space: nowrap;
-  }
-
-  .today-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--today);
-    z-index: 3;
-    pointer-events: none;
-  }
-  .today-badge {
-    position: absolute;
-    top: 0.25rem;
-    transform: translateX(-50%);
-    background: var(--today);
-    color: #ffffff;
-    font-size: 0.625rem;
-    font-weight: 600;
-    padding: 0.0625rem 0.375rem;
-    border-radius: 4px;
-    z-index: 4;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-
-  .group-row {
-    display: flex;
-    height: 2.75rem;
-    background: var(--bg);
-  }
-  .gap-row {
-    display: flex;
-    height: 1.125rem;
-    background: var(--bg);
-  }
-  .new-row {
-    display: flex;
-    height: 2.375rem;
-    border-bottom: 1px solid var(--border-soft);
-  }
-  .new-row .sticky-group { align-items: center; }
-  .new-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.4375rem;
-    height: 100%;
-    padding: 0 0.75rem;
-    border: none;
-    background: none;
-    font: inherit;
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-  .new-btn:hover { color: var(--text-secondary); }
-  .new-btn:disabled { opacity: 0.5; cursor: default; }
-  .new-plus { font-size: 1rem; line-height: 1; }
-  .group-row .sticky-col {
-    background: var(--bg);
-    justify-content: flex-start;
-    padding: 0;
-  }
-  .group-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.5625rem;
-    width: 100%;
-    height: 100%;
-    padding: 0 0.75rem;
-    border: none;
-    background: none;
-    font: inherit;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .group-toggle .group-name {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--text-heading);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .group-toggle .group-count {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-  .group-chevron { flex-shrink: 0; font-size: 0.8125rem; width: 0.875rem; text-align: center; color: var(--text); }
-
-  .task-row {
-    display: flex;
-    height: var(--row-h);
-    border-bottom: 1px solid var(--border-soft);
-  }
-  .task-row:hover { background: var(--bg-secondary); }
-
-  .bar-track {
-    position: relative;
-    flex: 1;
-  }
-
-  .bar {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 1.625rem;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    cursor: grab;
-    display: flex;
-    align-items: center;
-    min-width: 0.5rem;
-    touch-action: none;
-    overflow: hidden;
-  }
-  .bar:active { cursor: grabbing; }
-  .bar.saving { opacity: 0.55; pointer-events: none; }
-
-  .bar-label {
-    padding: 0 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    gap: 0.3125rem;
-  }
-  .bar-tag {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.625rem;
-    font-weight: 600;
-    padding: 0.0625rem 0.3125rem;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.72);
-    color: inherit;
-    white-space: nowrap;
-  }
-
-  .bar-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 0.5rem;
-    cursor: ew-resize;
-  }
-  .bar-handle.left { left: 0; }
-  .bar-handle.right { right: 0; }
-
-  .field-input-wrap { width: 100%; }
-  .field-input-wrap input,
-  .field-input-wrap select {
-    width: 100%;
-    font-family: var(--font);
-    font-size: 0.75rem;
-    color: inherit;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    padding: 0.2rem 0.3rem;
-  }
-  .field-input-wrap input[type="checkbox"] { width: auto; }
-  .field-input-wrap input:hover,
-  .field-input-wrap select:hover { border-color: var(--border-strong); }
-  .field-input-wrap input:focus,
-  .field-input-wrap select:focus {
-    border-color: var(--accent);
-    background: var(--bg);
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
-  }
-
-  .cell-badge {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border-radius: 4px;
-    padding: 0.125rem 0.5rem;
-    cursor: pointer;
-    white-space: nowrap;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .cell-badge.empty {
-    background: transparent;
-    color: var(--text-muted);
-    padding-left: 0.125rem;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 15, 15, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 1rem;
-  }
-  .modal-overlay[hidden] { display: none; }
-  .modal {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-modal);
-    width: 100%;
-    max-width: 25rem;
-    max-height: 82vh;
-    overflow-y: auto;
-    padding: 1.25rem;
-  }
-  .modal-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-  .modal-header h2 {
-    font-size: 1.0625rem;
-    font-weight: 600;
-    color: var(--text-heading);
-    line-height: 1.25;
-    margin: 0;
-  }
-  .modal-close {
-    border: none;
-    background: none;
-    font-size: 0.9375rem;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--text-muted);
-    padding: 0.25rem;
-    border-radius: var(--radius);
-    flex-shrink: 0;
-  }
-  .modal-close:hover { background: var(--bg-secondary); }
-  .modal-divider { height: 1px; background: var(--border); margin: 0.875rem 0; }
-  .modal-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem; }
-  .modal-field.full { grid-column: 1 / -1; }
-  .modal-field label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-tertiary);
-    margin-bottom: 0.3125rem;
-  }
-  .modal-field input,
-  .modal-field select {
-    width: 100%;
-    font-family: var(--font);
-    font-size: 0.875rem;
-    padding: 0.5rem 0.625rem;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--text);
-  }
-  .modal-field input[type="checkbox"] { width: auto; accent-color: var(--accent); }
-  .modal-empty { font-size: 0.8125rem; color: var(--text-secondary); margin: 0; }
-  .modal-footer {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.6875rem;
-    color: var(--text-muted);
-    margin-top: 0.875rem;
-  }
-  .modal-footer-dot {
-    width: 0.375rem;
-    height: 0.375rem;
-    border-radius: 50%;
-    background: var(--success);
-    flex-shrink: 0;
-  }
-
-  @media (max-width: 640px) {
-    .sticky-col.name { width: 8rem !important; }
-  }
-</style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to timeline</a>
-
-<header class="app-header">
-  <div>
-    <h1>Timeline</h1>
-    <p class="subtitle">Drag a bar to move it, drag its edges to resize.</p>
-  </div>
-  <div class="toolbar">
-    <div class="btn-group" role="group" aria-label="Zoom level">
-      <button type="button" data-zoom="day" aria-pressed="false">Day</button>
-      <button type="button" data-zoom="week" aria-pressed="false">Week</button>
-      <button type="button" data-zoom="month" aria-pressed="true">Month</button>
-      <button type="button" data-zoom="quarter" aria-pressed="false">Quarter</button>
-    </div>
-    <button type="button" class="today-btn" id="scroll-today">Today</button>
-  </div>
-</header>
-
-<div id="loader" role="status" aria-live="polite">
-  <span class="spinner" aria-hidden="true"></span>
-  <span>Loading timeline…</span>
-</div>
-
-<div id="error-banner" role="alert">
-  <span id="error-text">Something went wrong.</span>
-  <button type="button" id="error-dismiss">Dismiss</button>
-</div>
-
-<p id="kbd-instructions" class="sr-only">
-  With a task bar focused: Enter or Space opens its details. Left and Right arrow keys move the task by one day.
-  Shift plus Left or Right resizes the end date. Alt plus Left or Right resizes the start date.
-</p>
-
-<div class="modal-overlay" id="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2 id="task-modal-title"></h2>
-      <button type="button" class="modal-close" id="task-modal-close" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-divider"></div>
-    <div class="modal-body" id="task-modal-body"></div>
-    <div class="modal-footer">
-      <span class="modal-footer-dot" aria-hidden="true"></span>
-      Changes save automatically
-    </div>
-  </div>
-</div>
-
-<main id="main">
-  <div id="empty-state">
-    Map <strong>Start date</strong> and <strong>End date</strong> in the widget's config panel (the ⚙️ icon) to get started. <strong>Colour by</strong>, <strong>Group by</strong> and the extra field lists are optional.
-    <pre id="debug-info"></pre>
-  </div>
-  <div class="timeline-scroll hidden" id="timeline-scroll">
-    <div class="timeline-inner" id="timeline-inner"></div>
-  </div>
-</main>
-
-<script>
-'use strict';
+('use strict');
 
 /* No manual configuration needed — the table is auto-detected by matching
    which table contains all the mapped columns, used to pull real Grist
@@ -698,9 +11,13 @@
 function logSecurity(level, action, details) {
   var ts = new Date().toISOString();
   var msg = '[' + ts + '] [' + level + '] ' + action;
-  if (level === 'ERROR') { console.error(msg, details || ''); }
-  else if (level === 'WARN') { console.warn(msg, details || ''); }
-  else { console.log(msg, details || ''); }
+  if (level === 'ERROR') {
+    console.error(msg, details || '');
+  } else if (level === 'WARN') {
+    console.warn(msg, details || '');
+  } else {
+    console.log(msg, details || '');
+  }
 }
 
 function validateNumber(value, min, max, fallback) {
@@ -714,7 +31,12 @@ function validateNumber(value, min, max, fallback) {
 var errorBanner = document.getElementById('error-banner');
 var errorText = document.getElementById('error-text');
 function showError(userMessage, realError) {
-  if (realError) logSecurity('ERROR', 'widget-error', realError && realError.message ? realError.message : realError);
+  if (realError)
+    logSecurity(
+      'ERROR',
+      'widget-error',
+      realError && realError.message ? realError.message : realError
+    );
   errorText.textContent = userMessage;
   errorBanner.classList.add('visible');
 }
@@ -733,14 +55,19 @@ function hideLoader() {
 /* ---------- helpers ---------- */
 
 function toRows(t) {
-  var ids = (t && t.id) || [], keys = Object.keys(t || {});
+  var ids = (t && t.id) || [],
+    keys = Object.keys(t || {});
   return ids.map(function (_, i) {
     var r = {};
-    keys.forEach(function (k) { r[k] = t[k][i]; });
+    keys.forEach(function (k) {
+      r[k] = t[k][i];
+    });
     return r;
   });
 }
-function val(v) { return (v === null || v === undefined) ? '' : String(v); }
+function val(v) {
+  return v === null || v === undefined ? '' : String(v);
+}
 
 function choiceListToArray(v) {
   if (Array.isArray(v) && v[0] === 'L') return v.slice(1);
@@ -763,7 +90,7 @@ var DAY_MS = 86400000;
 
 function secToDate(sec) {
   if (sec === null || sec === undefined || sec === '') return null;
-  var d = (typeof sec === 'number') ? new Date(sec * 1000) : new Date(sec); // number = Unix seconds, string = ISO (fetchSelectedTable serialises dates differently to docApi.fetchTable)
+  var d = typeof sec === 'number' ? new Date(sec * 1000) : new Date(sec); // number = Unix seconds, string = ISO (fetchSelectedTable serialises dates differently to docApi.fetchTable)
   if (isNaN(d.getTime())) return null;
   var y = d.getUTCFullYear();
   if (y < 1990 || y > 2100) return null; // guards against a mis-mapped column producing a garbage date
@@ -803,19 +130,33 @@ function fmtQuarter(d) {
 /* ---------- colour: real Grist choice colours, with a palette fallback ---------- */
 
 var STATUS_PALETTE = [
-  { bg: 'var(--prop-gray-bg)',   solid: 'var(--prop-gray-solid)',   text: 'var(--prop-gray-text)' },
-  { bg: 'var(--prop-blue-bg)',   solid: 'var(--prop-blue-solid)',   text: 'var(--prop-blue-text)' },
-  { bg: 'var(--prop-orange-bg)', solid: 'var(--prop-orange-solid)', text: 'var(--prop-orange-text)' },
-  { bg: 'var(--prop-red-bg)',    solid: 'var(--prop-red-solid)',    text: 'var(--prop-red-text)' },
-  { bg: 'var(--prop-green-bg)',  solid: 'var(--prop-green-solid)',  text: 'var(--prop-green-text)' },
-  { bg: 'var(--prop-yellow-bg)', solid: 'var(--prop-yellow-solid)', text: 'var(--prop-yellow-text)' },
-  { bg: 'var(--prop-purple-bg)', solid: 'var(--prop-purple-solid)', text: 'var(--prop-purple-text)' },
-  { bg: 'var(--prop-pink-bg)',   solid: 'var(--prop-pink-solid)',   text: 'var(--prop-pink-text)' },
-  { bg: 'var(--prop-brown-bg)',  solid: 'var(--prop-brown-solid)',  text: 'var(--prop-brown-text)' }
+  { bg: 'var(--prop-gray-bg)', solid: 'var(--prop-gray-solid)', text: 'var(--prop-gray-text)' },
+  { bg: 'var(--prop-blue-bg)', solid: 'var(--prop-blue-solid)', text: 'var(--prop-blue-text)' },
+  {
+    bg: 'var(--prop-orange-bg)',
+    solid: 'var(--prop-orange-solid)',
+    text: 'var(--prop-orange-text)'
+  },
+  { bg: 'var(--prop-red-bg)', solid: 'var(--prop-red-solid)', text: 'var(--prop-red-text)' },
+  { bg: 'var(--prop-green-bg)', solid: 'var(--prop-green-solid)', text: 'var(--prop-green-text)' },
+  {
+    bg: 'var(--prop-yellow-bg)',
+    solid: 'var(--prop-yellow-solid)',
+    text: 'var(--prop-yellow-text)'
+  },
+  {
+    bg: 'var(--prop-purple-bg)',
+    solid: 'var(--prop-purple-solid)',
+    text: 'var(--prop-purple-text)'
+  },
+  { bg: 'var(--prop-pink-bg)', solid: 'var(--prop-pink-solid)', text: 'var(--prop-pink-text)' },
+  { bg: 'var(--prop-brown-bg)', solid: 'var(--prop-brown-solid)', text: 'var(--prop-brown-text)' }
 ];
 function hashStr(s) {
   var h = 0;
-  for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  for (var i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  }
   return h;
 }
 function fallbackColor(value) {
@@ -825,51 +166,78 @@ function fallbackColor(value) {
 
 var choiceColors = {}; // populated from Grist's own column colours
 var columnLabels = {}; // colId -> display label, for the extra-field table headers
-var columnMeta = {};   // colId -> {type, choices}, for building the right input widget per field
+var columnMeta = {}; // colId -> {type, choices}, for building the right input widget per field
 
 function loadSchema(mappings) {
   if (!mappings) return Promise.resolve();
-  return grist.docApi.fetchTable('_grist_Tables_column').then(function (table) {
-    var cols = toRows(table);
+  return grist.docApi
+    .fetchTable('_grist_Tables_column')
+    .then(function (table) {
+      var cols = toRows(table);
 
-    columnLabels = {};
-    columnMeta = {};
-    cols.forEach(function (c) {
-      if (!(c.colId in columnLabels)) columnLabels[c.colId] = c.label || c.colId;
-      if (!(c.colId in columnMeta)) {
-        var opts = {};
-        try { opts = JSON.parse(c.widgetOptions || '{}'); } catch (e) { /* not JSON, ignore */ }
-        columnMeta[c.colId] = { type: val(c.type), choices: opts.choices || [] };
+      columnLabels = {};
+      columnMeta = {};
+      cols.forEach(function (c) {
+        if (!(c.colId in columnLabels)) columnLabels[c.colId] = c.label || c.colId;
+        if (!(c.colId in columnMeta)) {
+          var opts = {};
+          try {
+            opts = JSON.parse(c.widgetOptions || '{}');
+          } catch (_e) {
+            /* not JSON, ignore */
+          }
+          columnMeta[c.colId] = { type: val(c.type), choices: opts.choices || [] };
+        }
+      });
+
+      choiceColors = {};
+      if (!mappings.color) return;
+
+      var byTable = {};
+      cols.forEach(function (c) {
+        (byTable[c.parentId] = byTable[c.parentId] || []).push(c);
+      });
+
+      var matchCols = null;
+      var needed = [mappings.start, mappings.end, mappings.color].filter(Boolean);
+      Object.keys(byTable).forEach(function (tid) {
+        var ids = byTable[tid].map(function (c) {
+          return c.colId;
+        });
+        if (
+          needed.every(function (n) {
+            return ids.indexOf(n) !== -1;
+          })
+        )
+          matchCols = byTable[tid];
+      });
+
+      var colorCol =
+        matchCols &&
+        matchCols.filter(function (c) {
+          return c.colId === mappings.color;
+        })[0];
+      if (!colorCol) return;
+      try {
+        choiceColors = JSON.parse(colorCol.widgetOptions || '{}').choiceOptions || {};
+      } catch (_e) {
+        /* not JSON, ignore */
       }
+    })
+    .catch(function (e) {
+      logSecurity('WARN', 'Load schema', e.message);
+      choiceColors = {};
+      columnLabels = {};
     });
-
-    choiceColors = {};
-    if (!mappings.color) return;
-
-    var byTable = {};
-    cols.forEach(function (c) { (byTable[c.parentId] = byTable[c.parentId] || []).push(c); });
-
-    var matchCols = null;
-    var needed = [mappings.start, mappings.end, mappings.color].filter(Boolean);
-    Object.keys(byTable).forEach(function (tid) {
-      var ids = byTable[tid].map(function (c) { return c.colId; });
-      if (needed.every(function (n) { return ids.indexOf(n) !== -1; })) matchCols = byTable[tid];
-    });
-
-    var colorCol = matchCols && matchCols.filter(function (c) { return c.colId === mappings.color; })[0];
-    if (!colorCol) return;
-    try { choiceColors = JSON.parse(colorCol.widgetOptions || '{}').choiceOptions || {}; }
-    catch (e) { /* not JSON, ignore */ }
-  }).catch(function (e) {
-    logSecurity('WARN', 'Load schema', e.message);
-    choiceColors = {};
-    columnLabels = {};
-  });
 }
 function resolveColor(value) {
   var opt = choiceColors[value];
   if (opt && (opt.fillColor || opt.textColor)) {
-    return { bg: opt.fillColor || 'var(--prop-gray-bg)', solid: opt.textColor || 'var(--prop-gray-solid)', text: opt.textColor || 'var(--prop-gray-text)' };
+    return {
+      bg: opt.fillColor || 'var(--prop-gray-bg)',
+      solid: opt.textColor || 'var(--prop-gray-solid)',
+      text: opt.textColor || 'var(--prop-gray-text)'
+    };
   }
   return fallbackColor(value);
 }
@@ -883,9 +251,14 @@ function resolveColor(value) {
 /* short field types get a half-width cell in the popup grid; everything
    else (text, etc.) spans the full row */
 function isShortField(type) {
-  return type.indexOf('Date') === 0 ||
-    type === 'Choice' || type === 'ChoiceList' ||
-    type === 'Numeric' || type === 'Int' || type === 'Bool';
+  return (
+    type.indexOf('Date') === 0 ||
+    type === 'Choice' ||
+    type === 'ChoiceList' ||
+    type === 'Numeric' ||
+    type === 'Int' ||
+    type === 'Bool'
+  );
 }
 
 function buildFieldInput(colId, rawValue) {
@@ -919,7 +292,7 @@ function buildFieldInput(colId, rawValue) {
   } else if (meta.type === 'Numeric' || meta.type === 'Int') {
     input = document.createElement('input');
     input.type = 'number';
-    input.value = (rawValue === null || rawValue === undefined) ? '' : rawValue;
+    input.value = rawValue === null || rawValue === undefined ? '' : rawValue;
   } else {
     input = document.createElement('input');
     input.type = 'text';
@@ -961,23 +334,25 @@ function wireFieldSave(input, taskId, colId) {
     input.addEventListener('change', commit);
   } else {
     input.addEventListener('blur', commit);
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') input.blur(); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') input.blur();
+    });
   }
 }
 
 /* ---------- state ---------- */
 
 var state = {
-  tasks: [],            // {id, label, start, end, color, group, tableExtra, timelineExtra}
-  zoom: 'month',         // 'week' | 'month'
+  tasks: [], // {id, label, start, end, color, group, tableExtra, timelineExtra}
+  zoom: 'month', // 'week' | 'month'
   pxPerDay: 10,
-  rangeStart: null,      // UTC midnight Date
+  rangeStart: null, // UTC midnight Date
   rangeEnd: null,
   mappings: null,
-  sample: null,          // one raw record, kept for the on-screen debug panel
+  sample: null, // one raw record, kept for the on-screen debug panel
   scrolledOnce: false,
-  collapsed: {},         // group name -> true if collapsed
-  colWidths: {}          // colId -> px width (persisted via widgetOptions)
+  collapsed: {}, // group name -> true if collapsed
+  colWidths: {} // colId -> px width (persisted via widgetOptions)
 };
 
 var ZOOM_PX = { day: 48, week: 36, month: 10, quarter: 3 };
@@ -989,7 +364,8 @@ var elScroll = document.getElementById('timeline-scroll');
 var elEmpty = document.getElementById('empty-state');
 
 function computeRange() {
-  var minStart = null, maxEnd = null;
+  var minStart = null,
+    maxEnd = null;
   state.tasks.forEach(function (t) {
     if (t.start && (!minStart || t.start < minStart)) minStart = t.start;
     if (t.end && (!maxEnd || t.end > maxEnd)) maxEnd = t.end;
@@ -1005,7 +381,9 @@ function computeRange() {
   var MAX_DAYS = 7300; // ~20 years — individual dates are already sanity-checked (1990-2100), so this is just a final backstop
   if (daysBetween(state.rangeStart, state.rangeEnd) > MAX_DAYS) {
     state.rangeEnd = addDays(state.rangeStart, MAX_DAYS);
-    showError('The date range is unusually wide (20+ years) and was clamped — check the Start/End column mapping if that looks wrong.');
+    showError(
+      'The date range is unusually wide (20+ years) and was clamped — check the Start/End column mapping if that looks wrong.'
+    );
   }
 }
 
@@ -1015,7 +393,7 @@ function xForDate(date) {
 
 /* ---------- sticky column layout (one column per "Extra fields (list)", no forced Name field) ---------- */
 
-var EXTRA_COL_W = 130;      // default per-column width
+var EXTRA_COL_W = 130; // default per-column width
 var MIN_COL_W = 60;
 var MAX_COL_W = 600;
 var GROUP_LABEL_W = 180; // reserved so group headers have somewhere to show their label, even with zero extra fields picked
@@ -1025,10 +403,12 @@ function extraCols() {
 }
 function colWidth(colId) {
   var w = state.colWidths[colId];
-  return (typeof w === 'number' && isFinite(w)) ? w : EXTRA_COL_W;
+  return typeof w === 'number' && isFinite(w) ? w : EXTRA_COL_W;
 }
 function stickyWidth() {
-  var w = extraCols().reduce(function (sum, colId) { return sum + colWidth(colId); }, 0);
+  var w = extraCols().reduce(function (sum, colId) {
+    return sum + colWidth(colId);
+  }, 0);
   if (state.mappings && state.mappings.group) w = Math.max(w, GROUP_LABEL_W);
   return w;
 }
@@ -1046,9 +426,11 @@ function headerIcon(type) {
   svg.setAttribute('aria-hidden', 'true');
   svg.style.flexShrink = '0';
   var paths;
-  if (type === 'Choice' || type === 'ChoiceList') paths = ['M12 3a9 9 0 100 18 9 9 0 000-18z', 'M8.5 12l2.5 2.5 4.5-5'];
+  if (type === 'Choice' || type === 'ChoiceList')
+    paths = ['M12 3a9 9 0 100 18 9 9 0 000-18z', 'M8.5 12l2.5 2.5 4.5-5'];
   else if (type.indexOf('Date') === 0) paths = ['M5 4h14v16H5z', 'M5 9h14', 'M9 2v4', 'M15 2v4'];
-  else if (type === 'Numeric' || type === 'Int') paths = ['M4 9h16', 'M4 15h16', 'M9 4l-2 16', 'M17 4l-2 16'];
+  else if (type === 'Numeric' || type === 'Int')
+    paths = ['M4 9h16', 'M4 15h16', 'M9 4l-2 16', 'M17 4l-2 16'];
   else if (type === 'Bool') paths = ['M4 6h16v12H4z', 'M8 12l3 3 5-6'];
   else paths = ['M5 6h14', 'M12 6v13']; // text: a T
   paths.forEach(function (d) {
@@ -1078,7 +460,10 @@ function buildCell(colId, rawValue, taskId) {
     }
     badge.setAttribute('role', 'button');
     badge.setAttribute('tabindex', '0');
-    badge.setAttribute('aria-label', (columnLabels[colId] || colId) + ': ' + (value || 'empty') + ', edit');
+    badge.setAttribute(
+      'aria-label',
+      (columnLabels[colId] || colId) + ': ' + (value || 'empty') + ', edit'
+    );
     var swap = function () {
       var input = buildFieldInput(colId, rawValue);
       var sel = input.querySelector('select');
@@ -1090,7 +475,12 @@ function buildCell(colId, rawValue, taskId) {
       if (sel) sel.focus();
     };
     badge.addEventListener('click', swap);
-    badge.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); swap(); } });
+    badge.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        swap();
+      }
+    });
     return badge;
   }
   var input = buildFieldInput(colId, rawValue);
@@ -1123,7 +513,8 @@ function buildStickyGroup(extraValues, isHeader, taskId) {
       var rawValue = extraValues ? extraValues[i] : undefined;
       cell.appendChild(buildCell(colId, rawValue, taskId));
     } else {
-      cell.textContent = extraValues && extraValues[i] !== undefined ? cellDisplay(extraValues[i]) : '';
+      cell.textContent =
+        extraValues && extraValues[i] !== undefined ? cellDisplay(extraValues[i]) : '';
     }
     group.appendChild(cell);
   });
@@ -1161,7 +552,11 @@ function attachColResize(grip, colId) {
     function onUp(ev) {
       grip.removeEventListener('pointermove', onMove);
       grip.removeEventListener('pointerup', onUp);
-      try { grip.releasePointerCapture(ev.pointerId); } catch (err) { /* noop */ }
+      try {
+        grip.releasePointerCapture(ev.pointerId);
+      } catch (_err) {
+        /* noop */
+      }
       document.body.style.cursor = '';
       persistColWidths();
       render(); // full re-render so ruler/track widths line up cleanly
@@ -1240,7 +635,8 @@ function renderRuler(totalWidth) {
       addTick(cursor, fmtQuarter(cursor));
       cursor = addMonths(cursor, 3);
     }
-  } else { // month
+  } else {
+    // month
     cursor = startOfMonth(state.rangeStart);
     while (cursor < state.rangeEnd) {
       addTick(cursor, null);
@@ -1288,7 +684,10 @@ function renderRow(task, totalWidth) {
     bar.setAttribute('tabindex', '0');
     bar.setAttribute('aria-describedby', 'kbd-instructions');
     bar.setAttribute('aria-label', taskAriaLabel(task));
-    var titleParts = [taskDisplayText(task), fmtShort(task.start) + ' \u2192 ' + fmtShort(task.end)];
+    var titleParts = [
+      taskDisplayText(task),
+      fmtShort(task.start) + ' \u2192 ' + fmtShort(task.end)
+    ];
     bar.title = titleParts.join(' \u2014 ');
 
     var labelSpan = document.createElement('span');
@@ -1413,7 +812,9 @@ function renderNewRow(groupName, totalWidth) {
   lbl.textContent = 'New';
   btn.appendChild(plus);
   btn.appendChild(lbl);
-  btn.addEventListener('click', function () { createRecord(groupName, btn); });
+  btn.addEventListener('click', function () {
+    createRecord(groupName, btn);
+  });
 
   group.appendChild(btn);
   row.appendChild(group);
@@ -1436,12 +837,15 @@ function createRecord(groupName, btn) {
   // inherit the group value when adding under a named group
   if (groupName && state.mappings.group && groupName !== '(no group)') {
     var meta = columnMeta[state.mappings.group] || { type: 'Choice' };
-    fields[state.mappings.group] = (meta.type === 'ChoiceList') ? ['L', groupName] : groupName;
+    fields[state.mappings.group] = meta.type === 'ChoiceList' ? ['L', groupName] : groupName;
   }
 
   if (btn) btn.disabled = true;
-  grist.selectedTable.create({ fields: fields })
-    .then(function () { if (btn) btn.disabled = false; })
+  grist.selectedTable
+    .create({ fields: fields })
+    .then(function () {
+      if (btn) btn.disabled = false;
+    })
     .catch(function (err) {
       if (btn) btn.disabled = false;
       showError('Could not create the record.', err);
@@ -1457,28 +861,39 @@ function positionBar(bar, start, end) {
 
 function groupedTasks() {
   if (!state.mappings || !state.mappings.group) return [{ name: null, tasks: state.tasks }];
-  var groups = {}, order = [];
+  var groups = {},
+    order = [];
   function push(key, task) {
-    if (!(key in groups)) { groups[key] = []; order.push(key); }
+    if (!(key in groups)) {
+      groups[key] = [];
+      order.push(key);
+    }
     groups[key].push(task);
   }
   state.tasks.forEach(function (t) {
     if (t.groups.length) {
       // a task with several group values appears once under each — same
       // record, so editing/dragging any of its bars updates them all
-      t.groups.forEach(function (g) { push(g, t); });
+      t.groups.forEach(function (g) {
+        push(g, t);
+      });
     } else {
       push('', t); // no group value → "(no group)" bucket
     }
   });
   order.sort();
-  return order.map(function (key) { return { name: key || '(no group)', tasks: groups[key] }; });
+  return order.map(function (key) {
+    return { name: key || '(no group)', tasks: groups[key] };
+  });
 }
 
 function renderDebug() {
   var el = document.getElementById('debug-info');
   var m = state.mappings;
-  if (!el || !m || !m.start || !m.end || !state.sample) { if (el) el.textContent = ''; return; }
+  if (!el || !m || !m.start || !m.end || !state.sample) {
+    if (el) el.textContent = '';
+    return;
+  }
   var lines = [
     'DEBUG (remove this panel once things work):',
     'mappings.start = ' + JSON.stringify(m.start),
@@ -1508,7 +923,7 @@ function render() {
   var totalWidth = daysBetween(state.rangeStart, state.rangeEnd) * state.pxPerDay;
 
   elInner.innerHTML = '';
-  elInner.style.width = (totalWidth + stickyWidth()) + 'px';
+  elInner.style.width = totalWidth + stickyWidth() + 'px';
   elInner.appendChild(renderRuler(totalWidth));
 
   var todayX = xForDate(utcMidnight(new Date()));
@@ -1534,7 +949,9 @@ function render() {
     } else if (extraCols().length) {
       elInner.appendChild(renderColumnHeader(totalWidth));
     }
-    g.tasks.forEach(function (task) { elInner.appendChild(renderRow(task, totalWidth)); });
+    g.tasks.forEach(function (task) {
+      elInner.appendChild(renderRow(task, totalWidth));
+    });
     elInner.appendChild(renderNewRow(g.name, totalWidth));
   });
 
@@ -1553,7 +970,8 @@ function commitDates(taskId, newStart, newEnd, barEl, revertFn) {
 
   if (barEl) barEl.classList.add('saving');
 
-  grist.selectedTable.update({ id: taskId, fields: fields })
+  grist.selectedTable
+    .update({ id: taskId, fields: fields })
     .then(function () {
       if (barEl) barEl.classList.remove('saving');
     })
@@ -1590,7 +1008,8 @@ function attachDrag(bar, task) {
     if (!mode) return;
     var deltaPx = e.clientX - startPointerX;
     var deltaDays = Math.round(deltaPx / state.pxPerDay);
-    var newStart = origStart, newEnd = origEnd;
+    var newStart = origStart,
+      newEnd = origEnd;
 
     if (mode === 'move') {
       newStart = addDays(origStart, deltaDays);
@@ -1609,7 +1028,11 @@ function attachDrag(bar, task) {
 
   function finish(e) {
     if (!mode) return;
-    try { bar.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    try {
+      bar.releasePointerCapture(e.pointerId);
+    } catch (_err) {
+      /* noop */
+    }
     var newStart = task._pendingStart || origStart;
     var newEnd = task._pendingEnd || origEnd;
     mode = null;
@@ -1648,8 +1071,10 @@ function attachKeyboard(bar, task) {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     var dir = e.key === 'ArrowRight' ? 1 : -1;
-    var origStart = task.start, origEnd = task.end;
-    var newStart = origStart, newEnd = origEnd;
+    var origStart = task.start,
+      origEnd = task.end;
+    var newStart = origStart,
+      newEnd = origEnd;
 
     if (e.shiftKey) {
       newEnd = addDays(origEnd, dir);
@@ -1692,7 +1117,8 @@ function openTaskModal(task) {
   if (!editCols.length) {
     var p = document.createElement('p');
     p.className = 'modal-empty';
-    p.textContent = 'No editable fields configured yet \u2014 pick some under "Editable fields (popup)" in the config panel.';
+    p.textContent =
+      'No editable fields configured yet \u2014 pick some under "Editable fields (popup)" in the config panel.';
     taskModalBody.appendChild(p);
   } else {
     editCols.forEach(function (colId) {
@@ -1728,22 +1154,35 @@ function closeTaskModal() {
 }
 
 function onModalKeydown(e) {
-  if (e.key === 'Escape') { closeTaskModal(); return; }
+  if (e.key === 'Escape') {
+    closeTaskModal();
+    return;
+  }
   if (e.key !== 'Tab') return;
   var focusables = taskModal.querySelectorAll('input, select, button');
   if (!focusables.length) return;
-  var first = focusables[0], last = focusables[focusables.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  var first = focusables[0],
+    last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 taskModalClose.addEventListener('click', closeTaskModal);
-taskModal.addEventListener('click', function (e) { if (e.target === taskModal) closeTaskModal(); });
+taskModal.addEventListener('click', function (e) {
+  if (e.target === taskModal) closeTaskModal();
+});
 
 /* ---------- zoom + today controls ---------- */
 
 document.querySelectorAll('.btn-group [data-zoom]').forEach(function (btn) {
-  btn.addEventListener('click', function () { setZoom(btn.dataset.zoom); });
+  btn.addEventListener('click', function () {
+    setZoom(btn.dataset.zoom);
+  });
 });
 function setZoom(z) {
   state.zoom = z;
@@ -1775,9 +1214,27 @@ grist.ready({
     { name: 'end', title: 'End date', type: 'Date,DateTime', optional: false },
     { name: 'color', title: 'Colour by', type: 'Choice,ChoiceList', optional: true },
     { name: 'group', title: 'Group by', type: 'Choice,ChoiceList', optional: true },
-    { name: 'tableFields', title: 'Extra fields (list)', type: 'Any', optional: true, allowMultiple: true },
-    { name: 'timelineFields', title: 'Extra fields (on bar)', type: 'Any', optional: true, allowMultiple: true },
-    { name: 'editFields', title: 'Editable fields (popup)', type: 'Any', optional: true, allowMultiple: true }
+    {
+      name: 'tableFields',
+      title: 'Extra fields (list)',
+      type: 'Any',
+      optional: true,
+      allowMultiple: true
+    },
+    {
+      name: 'timelineFields',
+      title: 'Extra fields (on bar)',
+      type: 'Any',
+      optional: true,
+      allowMultiple: true
+    },
+    {
+      name: 'editFields',
+      title: 'Editable fields (popup)',
+      type: 'Any',
+      optional: true,
+      allowMultiple: true
+    }
   ]
 });
 
@@ -1803,7 +1260,10 @@ function persistColWidths() {
 }
 
 grist.onOptions(function (options) {
-  if (suppressNextOptions) { suppressNextOptions = false; return; }
+  if (suppressNextOptions) {
+    suppressNextOptions = false;
+    return;
+  }
   var w = options && options.colWidths;
   if (w && typeof w === 'object') {
     state.colWidths = w;
@@ -1822,39 +1282,50 @@ grist.onRecords(function (records, mappings) {
     state.mappings = mappings;
     state.sample = records && records[0] ? records[0] : null;
 
-    state.tasks = records.map(function (r) {
-      var startDate = secToDate(r[mappings.start]);
-      var endDate = secToDate(r[mappings.end]);
-      return {
-        id: r.id,
-        start: startDate ? utcMidnight(startDate) : null,
-        end: endDate ? utcMidnight(endDate) : null,
-        color: firstChoice(r[mappings.color]),
-        groups: mappings.group ? choiceListToArray(r[mappings.group]).map(val).filter(Boolean) : [],
-        tableExtra: (mappings.tableFields || []).map(function (colId) { return r[colId]; }),
-        timelineExtra: (mappings.timelineFields || []).map(function (colId) { return cellDisplay(r[colId]); }).filter(Boolean),
-        raw: r
-      };
-    }).filter(function (t) { return t.start && t.end; });
+    state.tasks = records
+      .map(function (r) {
+        var startDate = secToDate(r[mappings.start]);
+        var endDate = secToDate(r[mappings.end]);
+        return {
+          id: r.id,
+          start: startDate ? utcMidnight(startDate) : null,
+          end: endDate ? utcMidnight(endDate) : null,
+          color: firstChoice(r[mappings.color]),
+          groups: mappings.group
+            ? choiceListToArray(r[mappings.group]).map(val).filter(Boolean)
+            : [],
+          tableExtra: (mappings.tableFields || []).map(function (colId) {
+            return r[colId];
+          }),
+          timelineExtra: (mappings.timelineFields || [])
+            .map(function (colId) {
+              return cellDisplay(r[colId]);
+            })
+            .filter(Boolean),
+          raw: r
+        };
+      })
+      .filter(function (t) {
+        return t.start && t.end;
+      });
   } catch (err) {
     hideLoader();
     showError('Could not read the mapped data.', err);
     return;
   }
 
-  loadSchema(mappings).then(function () {
-    try {
+  loadSchema(mappings)
+    .then(function () {
+      try {
+        hideLoader();
+        render();
+      } catch (err) {
+        hideLoader();
+        showError('Could not render the timeline.', err);
+      }
+    })
+    .catch(function (err) {
       hideLoader();
-      render();
-    } catch (err) {
-      hideLoader();
-      showError('Could not render the timeline.', err);
-    }
-  }).catch(function (err) {
-    hideLoader();
-    showError('Could not load colours.', err);
-  });
+      showError('Could not load colours.', err);
+    });
 });
-</script>
-</body>
-</html>

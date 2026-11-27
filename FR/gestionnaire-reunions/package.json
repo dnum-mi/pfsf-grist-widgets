@@ -1,11 +1,11 @@
 {
   "name": "@amandinedug/widget-reunions",
   "description": "Kanban and calendar widget for managing meetings in Grist.",
-  "homePage": "https://github.com/amandinedug/grist-custom-widgets",
+  "homePage": "https://github.com/dnum-mi/pfsf-grist-widgets",
   "version": "1.0.0",
   "grist": {
     "name": "Gestionnaire de réunions",
-    "url": "https://amandinedug.github.io/grist-custom-widgets/reunions/index.html",
+    "url": "https://dnum-mi.github.io/pfsf-grist-widgets/reunions/index.html",
     "widgetId": "@amandinedug/widget-reunions",
     "published": true,
     "accessLevel": "full",

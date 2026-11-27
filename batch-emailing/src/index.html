@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="widget-version" content="%VITE_APP_VERSION%" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  </head>
+  <body>
+    <div class="email-widget">
+      <div class="widget-header">
+        <div class="header-actions">
+          <span id="dev-badge" class="badge-dev" style="display: none"></span>
+          <!-- Language Switcher -->
+          <div class="language-switcher">
+            <div class="current-lang">
+              <span>🇫🇷</span>
+              <span class="lang-text">FR</span>
+            </div>
+            <div class="lang-dropdown">
+              <!-- Options populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <h2>Batch Email Sender</h2>
+        <p>Configure and send batch emails to multiple recipients</p>
+      </div>
+
+      <div class="form-group">
+        <label for="recipientsList">Recipients</label>
+        <p class="warning-text">
+          <i
+            >💡 Filters must be applied on this widget's view to affect the recipient list. Please
+            verify that the recipient count matches your expected results.</i
+          >
+        </p>
+
+        <div class="manual-add-section">
+          <input
+            type="email"
+            id="newEmail"
+            placeholder="Enter email address"
+            class="manual-input"
+          />
+          <button id="addEmail" class="btn btn-secondary">Add Recipient</button>
+        </div>
+
+        <div id="recipientsList" class="recipients-list"></div>
+
+        <div class="recipients-count">
+          <b><span id="recipientsCount">0</span></b>
+        </div>
+
+        <div id="removedList" class="removed-list" style="display: none">
+          <h3>Removed Recipients</h3>
+          <div id="removedEmails" class="removed-emails"></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="subject">Email Subject</label>
+        <input type="text" id="subject" placeholder="Enter email subject" />
+      </div>
+
+      <div class="form-group">
+        <label for="emailContent">Email Content</label>
+        <p class="info-text" id="contentInfoText" style="display: none">
+          📝 Content auto-filled from first table row. You can edit it before sending.
+        </p>
+        <textarea
+          id="emailContent"
+          class="email-editor"
+          placeholder="Write your email content here..."
+        ></textarea>
+      </div>
+
+      <div class="widget-footer">
+        <span class="widget-version" id="widget-version">v%VITE_APP_VERSION%</span>
+        <button id="sendEmail" class="btn btn-primary">Compose Email</button>
+      </div>
+
+      <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script type="module" src="./script.js"></script>
+  </body>
+</html>

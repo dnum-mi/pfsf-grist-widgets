@@ -51,7 +51,7 @@ Widget personnalisé affichant un en-tête conforme au Système de Design de l'�
 **Option 2 : URL personnalisée**
 
 1. Ajouter une vue personnalisée à la page → URL personnalisée
-2. Copier-coller l'URL : [https://amandinedug.github.io/grist-custom-widgets/DSFR/dsfr-en-tete/](https://amandinedug.github.io/grist-custom-widgets/DSFR/dsfr-en-tete/)
+2. Copier-coller l'URL : [https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-en-tete/](https://dnum-mi.github.io/pfsf-grist-widgets/DSFR/dsfr-en-tete/)
 3. Mapper les colonnes dans le panneau de configuration
 
 ## Utilisation

@@ -18,7 +18,7 @@ Un widget minimaliste qui affiche le nombre de lignes de la table liée, avec un
 ### Option 1 : URL directe (recommandée)
 
 1. Dans votre document Grist, ajoutez un widget personnalisé (⊕ → Custom)
-2. Collez l'URL : `https://amandinedug.github.io/grist-custom-widgets/FR/compteur-lignes/`
+2. Collez l'URL : `https://dnum-mi.github.io/pfsf-grist-widgets/FR/compteur-lignes/`
 3. Définissez le niveau d'accès sur **Read table**
 4. Liez le widget à la table dont vous souhaitez compter les lignes
 
