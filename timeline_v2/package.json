@@ -1,0 +1,46 @@
+{
+  "name": "@pfsf/widget-timeline-v2",
+  "version": "0.1.0",
+  "description": "Grist custom widget for advanced timeline with Shoelace, GrainJS and vis-timeline",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "version": "node -e \"const f='./package.json',p=JSON.parse(require('fs').readFileSync(f));p.grist.version=p.version;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\\n')\" && git add package.json"
+  },
+  "grist": {
+    "name": "Timeline Grist Native",
+    "widgetId": "@pfsf/widget-timeline-v2",
+    "version": "0.1.0",
+    "published": true,
+    "accessLevel": "full",
+    "renderAfterReady": true,
+    "description": "Vue chronologique avancée (v2) interactive et réactive pour Grist"
+  },
+  "dependencies": {
+    "@shoelace-style/shoelace": "2.18.0",
+    "fromit": "^2.2.11",
+    "grainjs": "^1.0.2",
+    "moment-timezone": "0.5.45",
+    "ramda": "^0.30.1",
+    "rxjs": "^7.8.1",
+    "vanilla-context-menu": "^1.6.0",
+    "vis-timeline": "^7.7.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/moment-timezone": "^0.5.30",
+    "@types/ramda": "^0.30.2",
+    "@typescript-eslint/parser": "^8.24.0",
+    "eslint": "^9.20.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.1.0",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}

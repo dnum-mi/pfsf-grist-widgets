@@ -1,0 +1,29 @@
+@import './pre.css';
+@import './post.css';
+
+/* Styles pour la version et le badge de développement */
+.widget-version {
+  margin: 0;
+  font-family: monospace;
+  font-size: 11px;
+  color: #6b7280;
+  text-align: right;
+  padding: 0 4px;
+}
+
+.badge-dev {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9a3412;
+  background-color: #ffedd5;
+  border: 1px solid #f97316;
+  border-radius: 9999px;
+  padding: 2px 7px;
+  letter-spacing: 0.03em;
+  user-select: none;
+  white-space: nowrap;
+}
