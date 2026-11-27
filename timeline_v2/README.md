@@ -48,6 +48,22 @@ Copiez l'intégralité du fichier autonome produit [`dist/index.html`](./dist/in
 
 ---
 
+## 📋 Configuration des colonnes (Mapping Grist)
+
+Le widget gère nativement les colonnes de type **Date** et **DateTime** de Grist sans nécessiter de conversion artificielle :
+
+| Champ dans le widget | Type Grist attendu | Requis | Description & Comportement |
+| -------------------- | ------------------ | ------ | -------------------------- |
+| **From / Start Date** | `Date` ou `DateTime` | **Oui** | Date de début. Si le type est `Date`, démarre automatiquement à 00:00:00. |
+| **To / End Date** | `Date` ou `DateTime` | Non | Date de fin. Si non renseigné, prend automatiquement la fin du jour de début (23:59:59) pour former un jour plein. |
+| **Group by** | Tout type (multiple) | Non | Colonne(s) de groupement (ex: Projet, Équipe, Statut). Si non configuré, tous les éléments apparaissent dans une ligne par défaut. |
+| **Title / Label** | `Text`, etc. (multiple) | Non | Titre affiché sur la barre chronologique. |
+| **Readonly** | `Bool` | Non | Si vrai, verrouille l'élément en lecture seule (interdit le drag & drop). |
+| **Group Info** | Tout type (multiple) | Non | Métadonnées supplémentaires affichées dans le tiroir de groupe. |
+| **Item Info** | Tout type (multiple) | Non | Métadonnées supplémentaires affichées dans le tiroir de l'élément sélectionné. |
+
+---
+
 ## Architecture du widget
 
 Le widget est intégralement typé en TypeScript, modularisé et autonome :

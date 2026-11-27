@@ -1,6 +1,6 @@
 import './widget-info.ts';
 import { buildCursor } from './cursor';
-import { headerMonitor, rewriteHeader } from './header';
+import { headerMonitor, recalculateHeader, rewriteHeader } from './header';
 import {
   Command,
   DATA,
@@ -10,7 +10,8 @@ import {
   Item,
   memo,
   onClick,
-  Schema,
+  parseGristDate,
+  ParsedGristDate,
   showAlert,
   stringToValue,
   valueToString,
@@ -22,7 +23,7 @@ import { from } from 'fromit';
 import { observable } from 'grainjs';
 import moment from 'moment-timezone';
 import { memoizeWith } from 'ramda';
-import { distinct, filter, skip, Subject, take } from 'rxjs';
+import { distinct, filter, skip, Subject } from 'rxjs';
 import VanillaContextMenu from 'vanilla-context-menu';
 import { DataSet, Timeline, TimelineOptions } from 'vis-timeline/standalone';
 
@@ -39,15 +40,33 @@ const records = observable([] as any[]);
 const order = new Map();
 const editCard = observable(false);
 const confirmChanges = observable(false);
-const currentScale = observable('day');
+const currentScale = observable('auto');
 const items = observable([] as Item[]);
-const groupSelected = observable(null as number | null);
+const groupSelected = observable(null as any);
+groupSelected.addListener((sel) => {
+  document.querySelectorAll('.group-template').forEach((el) => {
+    el.classList.remove('group-selected');
+  });
+  if (sel !== null && sel !== undefined) {
+    const selId = typeof sel === 'object' ? sel.id : sel;
+    document.querySelectorAll(`.group-item-${selId}`).forEach((el) => {
+      el.classList.add('group-selected');
+    });
+  }
+});
 const focusOnSelect = observable(false);
+const showAddButton = observable(true);
 const mappings = observable<any>({});
+
+function openSettingsDrawer() {
+  const drawer = document.querySelector('.drawer-settings') as any;
+  if (drawer) {
+    drawer.show();
+  }
+}
 
 const eventAdd = new Subject<number>();
 const eventGroupInfo = new Subject<number>();
-const eventItemInfo = new Subject<number>();
 
 const cmdAddBlank = new Command<any>();
 
@@ -70,26 +89,36 @@ function endKey(item: Item, days: number = 0): string {
 grist.ready({
   allowSelectBy: true,
   requiredAccess: 'full',
+  onEditOptions: () => openSettingsDrawer(),
   columns: [
     {
       name: 'Columns',
-      allowMultiple: true
+      title: 'Group by',
+      allowMultiple: true,
+      optional: true
     },
 
     {
       name: 'Title',
+      title: 'Title / Label',
       allowMultiple: true,
       optional: true
     },
     {
       name: 'Readonly',
+      title: 'Readonly',
       optional: true
     },
     {
-      name: 'From'
+      name: 'From',
+      title: 'From / Start Date',
+      type: 'Date,DateTime'
     },
     {
-      name: 'To'
+      name: 'To',
+      title: 'To / End Date',
+      type: 'Date,DateTime',
+      optional: true
     },
 
     {
@@ -130,6 +159,7 @@ const options: TimelineOptions = {
     const text = parts[1] ? `${parts[0]} (${parts[1] || 'no subject'})` : parts[0];
     const div = document.createElement('div');
     div.className = 'item-template';
+    div.title = text;
     const span = document.createElement('span');
     span.innerText = text;
     div.appendChild(span);
@@ -150,6 +180,8 @@ const options: TimelineOptions = {
     const all = items.get() as Item[];
 
     div.classList.remove('item-clash');
+    const iStart = new Date(start).getTime();
+    const iEnd = new Date(end).getTime();
     for (const other of all) {
       if (other.group !== item.group) {
         continue;
@@ -157,7 +189,9 @@ const options: TimelineOptions = {
       if (other.id === item.id) {
         continue;
       }
-      if (start >= other.data.To || end <= other.data.From) {
+      const oStart = new Date(other.start).getTime();
+      const oEnd = new Date(other.end).getTime();
+      if (iStart >= oEnd || iEnd <= oStart) {
         continue;
       }
       div.classList.add('item-clash');
@@ -178,24 +212,24 @@ const options: TimelineOptions = {
     if (!end || !start) {
       return;
     }
-    if (!(end instanceof Date) || !(start instanceof Date)) {
-      return;
-    }
-    const format = (date: Date) => moment(date).format('YYYY-MM-DD');
+    const format = (date: any) => moment(date).format('YYYY-MM-DD');
 
     if (confirmChanges.get() && !confirm('Are you sure you want to move this item?')) {
       callback(null);
       return;
     }
 
-    // If end is at midnignt (0:00) it means we were extending or shrinking, in that case move 1 minute before.
-    if (end.getHours() === 0 && end.getMinutes() === 0) {
-      end = moment(end).subtract(1, 'minute').toDate();
+    let endM = moment(end);
+    // If end is at midnight (0:00:00), subtract 1 second so it belongs to the intended day.
+    if (endM.hours() === 0 && endM.minutes() === 0 && endM.seconds() === 0) {
+      endM = endM.subtract(1, 'second');
     }
-    const fields = {
-      [mappings.get().From]: format(start),
-      [mappings.get().To]: format(end)
-    };
+    const fromCol = mappings.get()?.From;
+    const toCol = mappings.get()?.To;
+    const fields: Record<string, any> = {};
+    if (fromCol) fields[fromCol] = format(start);
+    if (toCol) fields[toCol] = format(endM.toDate());
+
     await withIdSpinner(item.id, async () => {
       callback(item);
       await grist.selectedTable.update({ id: item.id, fields });
@@ -204,18 +238,23 @@ const options: TimelineOptions = {
   async onAdd(item, callback) {
     let id: number = 0;
     try {
-      const group = idToCols.get(item.group);
+      const group = idToCols.get(item.group) || [];
+      const groupArray = Array.isArray(group) ? group : [group];
       const start = moment(item.start).format('YYYY-MM-DD');
 
-      if (!(item.start instanceof Date)) {
+      if (!item.start) {
         console.error('Invalid date');
         return;
       }
 
       // In group we have list of values, we need to create an object from it (zip it with columns).
-      const end = moment(defaultEnd(item.start)).format('YYYY-MM-DD');
-      const values = [...group, start, end];
-      const columns = [...mappings.get().Columns, mappings.get().From, mappings.get().To];
+      const end = moment(defaultEnd(new Date(item.start))).format('YYYY-MM-DD');
+      const mappedCols = mappings.get()?.Columns;
+      const colNames = Array.isArray(mappedCols) ? mappedCols : (mappedCols ? [mappedCols] : []);
+      const fromCol = mappings.get()?.From;
+      const toCol = mappings.get()?.To;
+      const values = [...groupArray, start, end];
+      const columns = [...colNames, fromCol, toCol].filter(Boolean);
       const rawFields = Object.fromEntries(zip(columns, values));
 
       const fields = await gristfyFields(rawFields);
@@ -237,14 +276,38 @@ const options: TimelineOptions = {
     // Create a container for the group
     const container = document.createElement('div');
 
-    container.classList.add('group-template');
+    container.classList.add('group-template', `group-item-${group.id}`);
+
+    const sel = groupSelected.get();
+    const selId = typeof sel === 'object' && sel !== null ? (sel as any).id : sel;
+    if (selId === group.id) {
+      container.classList.add('group-selected');
+    }
 
     if (group.id === 0) {
       container.classList.add('group-empty');
       return container;
     }
 
-    const columnsDivs: HTMLDivElement[] = group.columns.map((col) => {
+    const groupCols = Array.isArray(group.columns)
+      ? group.columns
+      : [group.columns ?? group.content ?? ''];
+
+    const groupLabelParts = groupCols
+      .map((col) => {
+        const val = stringToValue(col);
+        return typeof val === 'string' || val === null
+          ? valueToString(val)
+          : Array.isArray(val)
+            ? val.join(', ')
+            : String(val ?? '');
+      })
+      .filter((s) => s.trim().length > 0);
+    const fullGroupName = groupLabelParts.join(' • ') || group.content || 'Groupe';
+
+    container.title = fullGroupName;
+
+    const columnsDivs: HTMLDivElement[] = groupCols.map((col) => {
       const div = document.createElement('div');
       const value = stringToValue(col);
       if (typeof value === 'string' || value === null) {
@@ -257,24 +320,22 @@ const options: TimelineOptions = {
         // We only expect here to be array of strings.
         div.innerText = value.join(', ');
       }
+      div.title = div.innerText;
       div.classList.add('group-part');
-      div.style.padding = '5px';
       return div;
     });
 
     // Add 3 dots menu.
-    columnsDivs.push(
-      (() => {
-        const div = document.createElement('div');
-        div.innerHTML = '<sl-icon name="three-dots"></sl-icon>';
-        div.className = 'center cursor';
-        div.addEventListener('click', (e) => {
-          e.stopPropagation();
-          eventGroupInfo.next(group.id);
-        });
-        return div;
-      })()
-    );
+    const menuBtn = document.createElement('div');
+    menuBtn.innerHTML = '<sl-icon name="three-dots"></sl-icon>';
+    menuBtn.className = 'center cursor group-menu-btn';
+    menuBtn.title = `${fullGroupName} — Options / Détails`;
+    menuBtn.setAttribute('aria-label', `${fullGroupName} options`);
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      eventGroupInfo.next(group.id);
+    });
+    columnsDivs.push(menuBtn);
 
     container.append(...columnsDivs);
 
@@ -300,7 +361,7 @@ const options: TimelineOptions = {
     updateGroup: false
   },
   showCurrentTime: true,
-  showWeekScale: true,
+  showWeekScale: false,
   groupHeightMode: 'fixed',
 
   verticalScroll: true,
@@ -309,17 +370,38 @@ const options: TimelineOptions = {
 
   orientation: 'top',
 
-  timeAxis: {
-    scale: 'day'
-  },
   locale: 'en-gb',
-  stack: false,
+  format: {
+    minorLabels: {
+      millisecond: 'SSS',
+      second: 's',
+      minute: 'HH:mm',
+      hour: 'HH:mm',
+      weekday: 'ddd D',
+      day: 'D',
+      week: 'w',
+      month: 'MMM',
+      year: 'YYYY'
+    },
+    majorLabels: {
+      millisecond: 'HH:mm:ss',
+      second: 'D MMMM HH:mm',
+      minute: 'ddd D MMMM',
+      hour: 'ddd D MMMM',
+      weekday: 'MMMM YYYY',
+      day: 'MMMM YYYY',
+      week: 'MMMM YYYY',
+      month: 'YYYY',
+      year: ''
+    }
+  },
+  stack: true,
   stackSubgroups: false,
   xss: {
     disabled: true
   },
-  zoomMin: 1000 * 60 * 60 * 24 * 7 * 2, // about four weeks in milliseconds
-  zoomMax: 1000 * 60 * 60 * 24 * 31 * 3, // about  12 months in milliseconds
+  zoomMin: 1000 * 60 * 60 * 24 * 1, // 1 day
+  zoomMax: 1000 * 60 * 60 * 24 * 365 * 10, // 10 years
   moment: function (date) {
     return moment(date); // Use moment with the 'en-gb' locale setting
   },
@@ -329,8 +411,8 @@ const options: TimelineOptions = {
     return snappedDate.toDate();
   },
   margin: {
-    item: 1,
-    axis: 0
+    item: 4,
+    axis: 4
   }
 };
 
@@ -347,6 +429,7 @@ Object.assign(window as any, {
   confirmChanges,
   editCard,
   focusOnSelect,
+  showAddButton,
   timeline
 });
 
@@ -376,6 +459,8 @@ grist.onRecords(async (recs: any[], maps: any) => {
 
     if (areMappingsNew) {
       rewriteHeader({ mappings, timeline, cmdAddBlank });
+    } else {
+      recalculateHeader();
     }
 
     document.body.classList.remove('loading');
@@ -405,39 +490,72 @@ timeline.on('select', function (properties) {
   if (properties.items.length === 0) {
     return;
   }
-  grist.setCursorPos({ rowId: properties.items[0] });
+  const selectedId = properties.items[0];
+  grist.setCursorPos({ rowId: selectedId });
+  if (focusOnSelect.get()) {
+    timeline.focus(selectedId, {
+      animation: {
+        duration: 300,
+        easingFunction: 'easeInOutQuad'
+      }
+    });
+  }
+  if (editCard.get()) {
+    openCard();
+  }
 });
 
-function getFrom(r: any) {
-  return r.From && r.From instanceof Date ? r.From : null;
+function getFrom(r: any): ParsedGristDate | null {
+  return parseGristDate(r.From ?? r.start ?? r.Start ?? r.Date ?? r.date);
 }
 
-function getTo(r: any) {
-  return r.To && r.To instanceof Date ? r.To : null;
+function getTo(r: any): ParsedGristDate | null {
+  const toVal = r.To ?? r.end ?? r.End;
+  return parseGristDate(toVal) ?? getFrom(r);
 }
 
-function recToItem(r): Item {
+function recToItem(r: any): Item {
+  const parsedFrom = getFrom(r);
+  const parsedTo = getTo(r);
+
+  const start = parsedFrom
+    ? parsedFrom.isDateOnly
+      ? `${parsedFrom.dateStr}T00:00:00`
+      : moment(parsedFrom.date).format('YYYY-MM-DDTHH:mm:ss')
+    : '';
+  const end = parsedTo
+    ? parsedTo.isDateOnly
+      ? `${parsedTo.dateStr}T23:59:59`
+      : moment(parsedTo.date).format('YYYY-MM-DDTHH:mm:ss')
+    : '';
+
+  const groupKey = calcGroup(r);
+  const groupId = nameToId.get(groupKey) ?? 1;
+
+  let titleStr = 'no title';
+  if (r.Title !== undefined && r.Title !== null) {
+    if (Array.isArray(r.Title)) {
+      titleStr = r.Title.map((t: any) => valueToString(t)).join(' | ');
+    } else {
+      titleStr = valueToString(r.Title);
+    }
+  }
+
   const result: Item = {
     id: r.id,
-    content: '',
-    start: trimTime(getFrom(r)),
-    end: appendEnd(trimTime(getTo(r))),
+    content: titleStr || 'no title',
+    start,
+    end,
     type: 'range',
-    group: undefined,
+    group: groupId,
     className: 'item_' + r.id,
     data: r,
-    editable: undefined as any,
+    editable: r.Readonly ? false : (undefined as any),
     startKey: '',
     endKey: ''
   };
   result.startKey = startKey(result);
   result.endKey = endKey(result);
-  result.group = r.Columns.join('|');
-  result.group = nameToId.get(result.group);
-  result.content = (r.Title ?? ['no title']).join('|');
-  if (r.Readonly) {
-    result.editable = false;
-  }
 
   return result;
 }
@@ -445,14 +563,35 @@ function recToItem(r): Item {
 /**
  * Converts mapped record (as seen by widget), to the row in Grist.
  */
-function recToRow(record) {
-  const groupValues = record.Columns;
-  const columns = mappings.get().Columns;
-  const itemColumns = mappings.get().ItemInfo;
-  const itemValues = record.ItemInfo;
-  const allColumns = [...columns, ...itemColumns, mappings.get().From, mappings.get().To];
-  const newStart = moment(record.From).add(1, 'day').toDate();
-  const newEnd = moment(record.To).add(1, 'week').subtract(-1).toDate();
+function recToRow(record: any) {
+  const m = mappings.get() || {};
+  const mappedCols = m.Columns;
+  const columns = Array.isArray(mappedCols) ? mappedCols : mappedCols ? [mappedCols] : [];
+  const rawGroupVals = record.Columns;
+  const groupValues = Array.isArray(rawGroupVals)
+    ? rawGroupVals
+    : rawGroupVals
+      ? [rawGroupVals]
+      : [];
+
+  const mappedItemCols = m.ItemInfo;
+  const itemColumns = Array.isArray(mappedItemCols)
+    ? mappedItemCols
+    : mappedItemCols
+      ? [mappedItemCols]
+      : [];
+  const rawItemVals = record.ItemInfo;
+  const itemValues = Array.isArray(rawItemVals) ? rawItemVals : rawItemVals ? [rawItemVals] : [];
+
+  const parsedFrom = parseGristDate(record.From);
+  const parsedTo = parseGristDate(record.To);
+  const baseStart = parsedFrom ? parsedFrom.date : new Date();
+  const baseEnd = parsedTo ? parsedTo.date : baseStart;
+
+  const newStart = moment(baseStart).add(1, 'day').toDate();
+  const newEnd = moment(baseEnd).add(1, 'week').toDate();
+
+  const allColumns = [...columns, ...itemColumns, m.From, m.To].filter(Boolean);
   const allValues = [
     ...groupValues,
     ...itemValues,
@@ -493,22 +632,6 @@ onClick('#btnAlCampaign', () => {
   renderAllItems();
 });
 
-function trimTime(date?: Date) {
-  if (!date) {
-    return '';
-  }
-  if (!(date instanceof Date)) {
-    return '';
-  }
-  // Format date in format 'YYYY-MM-DD'
-  const formattedDate = date.toISOString().split('T')[0];
-  return formattedDate;
-}
-
-function appendEnd(yyyy_mm_dd: string) {
-  return `${yyyy_mm_dd}T23:59:59`;
-}
-
 const oldRecs = new Map();
 
 function renderItems() {
@@ -517,6 +640,7 @@ function renderItems() {
   let i = 1;
   nameToId.clear();
   idToName.clear();
+  idToCols.clear();
   for (const rec of recs) {
     const groupName = calcGroup(rec);
     if (nameToId.has(groupName)) {
@@ -524,8 +648,20 @@ function renderItems() {
     }
     nameToId.set(groupName, i);
     idToName.set(i, groupName);
-    idToCols.set(i, rec.Columns);
+    const cols = Array.isArray(rec.Columns)
+      ? rec.Columns
+      : rec.Columns
+        ? [rec.Columns]
+        : [groupName];
+    idToCols.set(i, cols);
     i++;
+  }
+
+  // If no groups at all, ensure at least one default group
+  if (nameToId.size === 0) {
+    nameToId.set('Default', 1);
+    idToName.set(1, 'Default');
+    idToCols.set(1, ['Default']);
   }
 
   const newIds = new Set(recs.map((x) => x.id));
@@ -537,7 +673,7 @@ function renderItems() {
   byEnd.clear();
 
   const newItems = from(recs as any[])
-    .filter((r) => getFrom(r) && getTo(r))
+    .filter((r) => getFrom(r) !== null)
     .map((r) => {
       const item = recToItem(r);
       if (!byStart.has(item.startKey)) {
@@ -573,6 +709,7 @@ function renderItems() {
 
   itemSet.update(array);
 }
+
 const formatCurrency = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD'
@@ -587,8 +724,16 @@ const nameToId = new Map(); // keys to id
 const idToName = new Map(); // id to keys
 const idToCols = new Map(); // visible columns
 
-function calcGroup(rec: any) {
-  return rec.Columns.join('|');
+function calcGroup(rec: any): string {
+  const cols = rec?.Columns;
+  if (!cols) {
+    return 'Default';
+  }
+  if (Array.isArray(cols)) {
+    const parts = cols.map((c) => valueToString(c)).join('|');
+    return parts || 'Default';
+  }
+  return valueToString(cols) || 'Default';
 }
 
 function renderGroups() {
@@ -600,16 +745,8 @@ function renderGroups() {
     content: c[1],
     editable: true,
     className: 'group_' + c[1],
-    columns: idToCols.get(c[0])
+    columns: idToCols.get(c[0]) || [c[1]]
   }));
-
-  // rawGroups.push({
-  //   id: 0,
-  //   content: 'Unassigned',
-  //   editable: false,
-  //   className: 'group_unassigned',
-  //   columns: [],
-  // })
 
   groupSet.update(rawGroups);
   timeline.setGroups(groupSet);
@@ -619,17 +756,20 @@ function bindConfig() {
   const configElements = document.querySelectorAll('.config');
 
   for (const el of configElements) {
-    // Subscribe to change event.
-    (el as HTMLSelectElement).onchange = function () {
-      const elementId = el.getAttribute('id')!;
-      const value = (el as HTMLSelectElement).value;
-      updateConfig(elementId, value);
-    };
-    el.addEventListener('sl-change', (event) => {
-      const checked = (event.target as any).checked;
-      const elementId = el.getAttribute('id')!;
-      updateConfig(elementId, checked);
-    });
+    const tagName = el.tagName.toLowerCase();
+    if (tagName === 'sl-switch') {
+      el.addEventListener('sl-change', (event: any) => {
+        const elementId = el.getAttribute('id')!;
+        const checked = Boolean(event.target.checked);
+        updateConfig(elementId, checked);
+      });
+    } else {
+      (el as HTMLElement).addEventListener('change', () => {
+        const elementId = el.getAttribute('id')!;
+        const value = (el as HTMLSelectElement | HTMLInputElement).value;
+        updateConfig(elementId, value);
+      });
+    }
   }
 }
 bindConfig();
@@ -641,17 +781,24 @@ function updateConfig(elementId: string, value: any) {
     functions[elementId](value);
     return;
   }
-  const formatedValue = stringToValue(value);
+  const formatedValue = typeof value === 'boolean' ? value : stringToValue(value);
   const schema = elementId.split(':')[0];
   const [parent, child] = elementId.split(':')[1].split('.');
   if (child && schema === 'timeline') {
     if (child === 'scale') {
       currentScale.set(formatedValue);
-      timeline.setOptions({
-        [parent]: {
-          [child]: formatedValue
-        }
-      });
+      if (formatedValue === 'auto') {
+        timeline.setOptions({
+          timeAxis: null as any
+        });
+      } else {
+        timeline.setOptions({
+          timeAxis: {
+            scale: formatedValue
+          }
+        });
+      }
+      grist.setOption('timeScale', formatedValue);
     } else {
       timeline.setOptions({
         [parent]: {
@@ -671,13 +818,14 @@ function updateConfig(elementId: string, value: any) {
       timeline.setGroups(groupSet);
       timeline.redraw();
     }
-  } else if (schema === 'local') {
+  } else if (schema === 'local' || schema === 'settings') {
     if (!(parent in window)) {
       console.error(`Local variable ${parent} not found in window`);
       return;
     }
 
     (window as any)[parent].set(formatedValue);
+    grist.setOption(parent, formatedValue);
   } else {
     console.error(`Unknown schema ${schema}`);
   }
@@ -712,9 +860,27 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   // Set defaults.
   timeline.setOptions({
-    stack: false,
-    timeAxis: {
-      scale: 'day'
+    stack: true
+  });
+
+  const zoomIn = () => {
+    timeline.zoomIn(0.3, { animation: { duration: 200, easingFunction: 'easeInOutQuad' } });
+  };
+  const zoomOut = () => {
+    timeline.zoomOut(0.3, { animation: { duration: 200, easingFunction: 'easeInOutQuad' } });
+  };
+
+  document.getElementById('zoomInButton')?.addEventListener('click', zoomIn);
+  document.getElementById('zoomOutButton')?.addEventListener('click', zoomOut);
+
+  window.addEventListener('keydown', (e) => {
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    if (e.key === '+' || e.key === '=') {
+      zoomIn();
+    } else if (e.key === '-' || e.key === '_') {
+      zoomOut();
     }
   });
 
@@ -724,9 +890,67 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.getElementById('fitButton')!.addEventListener('click', () => autoFit(true));
 
+  document.getElementById('settingsButton')?.addEventListener('click', openSettingsDrawer);
+
+  // Collision prevention for major time axis labels
+  function preventMajorOverlap() {
+    const majorLabels = Array.from(
+      document.querySelectorAll<HTMLElement>('.vis-time-axis .vis-text.vis-major')
+    ).sort((a, b) => a.offsetLeft - b.offsetLeft);
+
+    if (majorLabels.length <= 1) {
+      majorLabels.forEach((el) => {
+        el.style.visibility = 'visible';
+        el.style.maxWidth = '';
+      });
+      return;
+    }
+
+    let lastRight = -Infinity;
+    for (let i = 0; i < majorLabels.length; i++) {
+      const label = majorLabels[i];
+      const left = label.offsetLeft;
+      const nextLeft = i < majorLabels.length - 1 ? majorLabels[i + 1].offsetLeft : Infinity;
+      const availableWidth = nextLeft - left - 12;
+
+      if (left < lastRight + 8 || availableWidth < 35) {
+        label.style.visibility = 'hidden';
+      } else {
+        label.style.visibility = 'visible';
+        if (Number.isFinite(availableWidth) && availableWidth > 0) {
+          label.style.maxWidth = `${availableWidth}px`;
+        } else {
+          label.style.maxWidth = '';
+        }
+        lastRight = left + label.offsetWidth;
+      }
+    }
+  }
+
+  timeline.on('rangechange', preventMajorOverlap);
+  timeline.on('rangechanged', preventMajorOverlap);
+
+  const axisObserver = new MutationObserver(() => {
+    preventMajorOverlap();
+  });
+  const timeAxisEl = container.querySelector('.vis-time-axis');
+  if (timeAxisEl) {
+    axisObserver.observe(timeAxisEl, { childList: true, subtree: true });
+  } else {
+    const initObserver = new MutationObserver(() => {
+      const el = container.querySelector('.vis-time-axis');
+      if (el) {
+        initObserver.disconnect();
+        axisObserver.observe(el, { childList: true, subtree: true });
+        preventMajorOverlap();
+      }
+    });
+    initObserver.observe(container, { childList: true, subtree: true });
+  }
+
   headerMonitor.start();
 
-  // same manu for .vis-item.vis-range
+  // same menu for .vis-item.vis-range
   const itemMenu = new VanillaContextMenu({
     scope: fore as HTMLElement,
     menuItems: [
@@ -765,13 +989,62 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
-editCard.addListener(async (value: any) => {
-  (document.getElementById('local:editCard') as any)!.checked = value;
+editCard.addListener((value: boolean) => {
+  const el1 = document.getElementById('local:editCard') as any;
+  const el2 = document.getElementById('settings:editCard') as any;
+  if (el1 && el1.checked !== value) el1.checked = value;
+  if (el2 && el2.checked !== value) el2.checked = value;
+});
+
+confirmChanges.addListener((value: boolean) => {
+  const el1 = document.getElementById('local:confirmChanges') as any;
+  const el2 = document.getElementById('settings:confirmChanges') as any;
+  if (el1 && el1.checked !== value) el1.checked = value;
+  if (el2 && el2.checked !== value) el2.checked = value;
+});
+
+focusOnSelect.addListener((value: boolean) => {
+  const el1 = document.getElementById('local:focusOnSelect') as any;
+  const el2 = document.getElementById('settings:focusOnSelect') as any;
+  if (el1 && el1.checked !== value) el1.checked = value;
+  if (el2 && el2.checked !== value) el2.checked = value;
+});
+
+showAddButton.addListener((value: boolean) => {
+  document.getElementById('visualization')?.classList.toggle('hide-add', !value);
+  document.getElementById('groupHeader')?.classList.toggle('hide-add', !value);
+  const el = document.getElementById('settings:showAddButton') as any;
+  if (el && el.checked !== value) el.checked = value;
 });
 
 grist.onOptions((options: any) => {
   if (options?.editCard !== undefined) {
-    editCard.set(options.editCard ?? false);
+    editCard.set(Boolean(options.editCard));
+  }
+  if (options?.confirmChanges !== undefined) {
+    confirmChanges.set(Boolean(options.confirmChanges));
+  }
+  if (options?.focusOnSelect !== undefined) {
+    focusOnSelect.set(Boolean(options.focusOnSelect));
+  }
+  if (options?.showAddButton !== undefined) {
+    showAddButton.set(Boolean(options.showAddButton));
+  }
+  if (options?.timeScale !== undefined) {
+    currentScale.set(options.timeScale);
+    if (options.timeScale === 'auto') {
+      timeline.setOptions({
+        timeAxis: null as any
+      });
+    } else {
+      timeline.setOptions({
+        timeAxis: {
+          scale: options.timeScale
+        }
+      });
+    }
+    const select = document.getElementById('timeline:timeAxis.scale') as HTMLSelectElement | null;
+    if (select) select.value = options.timeScale;
   }
 });
 
@@ -781,6 +1054,7 @@ function zip<T, V>(a: T[], b: V[]): [T, V][] {
 
 function defaultEnd(start: Date) {
   switch (currentScale.get()) {
+    case 'auto':
     case 'day':
       return moment(start).endOf('day').toDate();
     case 'week':
@@ -790,11 +1064,17 @@ function defaultEnd(start: Date) {
     case 'year':
       return moment(start).add(1, 'year').subtract(1, 'day').endOf('day').toDate();
   }
-  throw new Error('Unknown scale');
+  return moment(start).endOf('day').toDate();
 }
 
-function openCard() {
-  return grist.commandApi.run('viewAsCard');
+async function openCard() {
+  try {
+    if (grist?.commandApi?.run) {
+      await grist.commandApi.run('viewAsCard');
+    }
+  } catch (err) {
+    console.warn('Could not open card view:', err);
+  }
 }
 
 /**
@@ -893,14 +1173,27 @@ function openGroupDrawer(groupId: number) {
   }
 
   const drawer = document.querySelector('.drawer-overview') as any;
+  if (!drawer) return;
   const drawerInfo = drawer.querySelector('.drawer-info') as any;
+  if (!drawerInfo) return;
   drawerInfo.innerHTML = ``;
 
-  const groupInfo = mappings.get().GroupInfo ?? [];
-  const colInfo = mappings.get().Columns ?? [];
+  const m = mappings.get() || {};
+  const groupInfo = m.GroupInfo ?? [];
+  const colInfo = m.Columns ?? [];
+  const groupInfoArr = Array.isArray(groupInfo) ? groupInfo : groupInfo ? [groupInfo] : [];
+  const colInfoArr = Array.isArray(colInfo) ? colInfo : colInfo ? [colInfo] : [];
 
-  const labels = [...colInfo, ...groupInfo];
-  const values = [...(item.data.GroupInfo ?? []), ...(item.data.Columns ?? [])];
+  const labels = [...colInfoArr, ...groupInfoArr].filter(Boolean);
+  const rawGroupVals = item.data?.GroupInfo ?? [];
+  const rawColVals = item.data?.Columns ?? [];
+  const groupValsArr = Array.isArray(rawGroupVals)
+    ? rawGroupVals
+    : rawGroupVals
+      ? [rawGroupVals]
+      : [];
+  const colValsArr = Array.isArray(rawColVals) ? rawColVals : rawColVals ? [rawColVals] : [];
+  const values = [...colValsArr, ...groupValsArr];
   const obj = zip(labels, values);
 
   for (const [label, value] of obj) {
@@ -916,14 +1209,20 @@ function openItemDrawer(itemId: number) {
     return;
   }
   const drawer = document.querySelector('.drawer-overview') as any;
+  if (!drawer) return;
   const drawerInfo = drawer.querySelector('.drawer-info') as any;
+  if (!drawerInfo) return;
   drawerInfo.innerHTML = ``;
 
-  const itemInfo = mappings.get().ItemInfo ?? [];
-  if (!itemInfo.length) {
+  const m = mappings.get() || {};
+  const itemInfo = m.ItemInfo ?? [];
+  const itemInfoArr = Array.isArray(itemInfo) ? itemInfo : itemInfo ? [itemInfo] : [];
+  if (!itemInfoArr.length) {
     return;
   }
-  const obj = zip(itemInfo, item.data.ItemInfo ?? []);
+  const rawItemVals = item.data?.ItemInfo ?? [];
+  const itemValsArr = Array.isArray(rawItemVals) ? rawItemVals : rawItemVals ? [rawItemVals] : [];
+  const obj = zip(itemInfoArr, itemValsArr);
   for (const [label, value] of obj) {
     appendDrawerLine(drawerInfo, label, value);
   }
@@ -932,13 +1231,22 @@ function openItemDrawer(itemId: number) {
 
 cmdAddBlank.handle(addBlank);
 async function addBlank() {
-  const fields = await gristfyFields({
-    [mappings.get().From]: moment().startOf('day').toDate(),
-    [mappings.get().To]: moment().endOf('isoWeek').toDate()
-  });
+  const m = mappings.get() || {};
+  const fromCol = m.From;
+  const toCol = m.To;
+  if (!fromCol) {
+    showAlert('warning', 'Please map the From / Start Date column first.');
+    return;
+  }
+  const rawFields: Record<string, any> = {
+    [fromCol]: moment().format('YYYY-MM-DD')
+  };
+  if (toCol) {
+    rawFields[toCol] = moment().endOf('isoWeek').format('YYYY-MM-DD');
+  }
+  const fields = await gristfyFields(rawFields);
   const { id } = await grist.selectedTable.create({ fields });
   await grist.setCursorPos({ rowId: id });
-  // Open the card.
   await openCard();
 }
 
@@ -954,7 +1262,7 @@ async function deleteSelected() {
   }, 10);
 }
 
-async function duplicateSelected(ev: MouseEvent) {
+async function duplicateSelected(ev?: MouseEvent) {
   const selected = timeline.getSelection() as number[];
   if (selected.length === 0) {
     return;
@@ -966,21 +1274,31 @@ async function duplicateSelected(ev: MouseEvent) {
   }
 
   const clone = structuredClone(rec);
-  clone.From = rec.To;
+  const parsedFrom = parseGristDate(rec.From);
+  const parsedTo = parseGristDate(rec.To) ?? parsedFrom;
 
-  // Calculate difference, and add it to the new date.
-  const diff = moment(rec.To).diff(clone.From);
-  clone.To = moment(clone.From).add(diff).toDate();
+  if (parsedFrom && parsedTo) {
+    const diffMs = Math.max(86400000, parsedTo.date.getTime() - parsedFrom.date.getTime());
+    const newFrom = new Date(parsedTo.date.getTime() + 86400000);
+    const newTo = new Date(newFrom.getTime() + diffMs);
+    clone.From = moment(newFrom).format('YYYY-MM-DD');
+    clone.To = moment(newTo).format('YYYY-MM-DD');
+  }
 
   const row = recToRow(clone);
   delete row.id;
 
-  const element = /* div with item_x */ document.querySelector(`.item_${selected[0]}`)!;
+  const element = document.querySelector(`.item_${selected[0]}`);
 
-  await withElementSpinner(element, async () => {
+  if (element) {
+    await withElementSpinner(element, async () => {
+      const fields = await gristfyFields(row);
+      await grist.selectedTable.create({ fields });
+    });
+  } else {
     const fields = await gristfyFields(row);
     await grist.selectedTable.create({ fields });
-  });
+  }
 }
 
 function autoFit(animation = false) {

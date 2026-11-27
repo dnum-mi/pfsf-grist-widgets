@@ -4,21 +4,26 @@
 
 :root {
   --buttons-height: 0px;
-  --status-height: 24px;
-  --primary-color: var(--grist-theme-progress-bar-fg, #16b378);
+  --status-height: 38px;
+  --primary-color: var(--grist-theme-progress-bar-fg, #10b981);
+  --border-color: #e2e8f0;
+  --text-color: #1e293b;
+  --text-muted: #64748b;
+  --bg-subtle: #f8fafc;
 }
 
 html,
 body {
   font-size: 13px;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Liberation Sans', Helvetica, Arial, sans-serif,
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-  background-color: var(--grist-theme-page-panels-main-panel-bg, #f7f7f7);
-  color: var(--grist-theme-text, black);
+  background-color: var(--grist-theme-page-panels-main-panel-bg, #ffffff);
+  color: var(--grist-theme-text, #1e293b);
   height: 100%;
   padding: 0px;
   margin: 0px;
+  overflow: hidden;
 }
 
 .cloak {
@@ -28,15 +33,16 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: #f3f3f3;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(2px);
   z-index: 1000;
   place-content: center;
 
   & sl-spinner {
     display: none;
-    font-size: 4rem;
-    --indicator-color: var(--grist-theme-progress-bar-fg, #16b378);
-    --track-color: var(--grist-theme-progress-bar-bg, #d9d9d9);
+    font-size: 3rem;
+    --indicator-color: var(--primary-color, #10b981);
+    --track-color: #e2e8f0;
   }
 }
 
@@ -50,6 +56,7 @@ body.loading.slow .cloak sl-spinner {
 
 div {
   scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 .center {
@@ -66,30 +73,43 @@ div {
   width: 100%;
   height: calc(100% - var(--buttons-height) - var(--status-height));
   margin-top: var(--buttons-height);
+  position: relative;
 }
 
 #status-bar {
   height: var(--status-height);
-  border-top: 1px solid #d3d3d3;
+  min-height: var(--status-height);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  background-color: #ffffff;
   display: flex;
   align-items: center;
-  padding-right: 8px;
-  min-height: 0px;
-  max-height: var(--status-height);
-  overflow: hidden;
-  gap: 4px;
+  padding: 0 12px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-divider {
+  width: 1px;
+  height: 18px;
+  background-color: #e2e8f0;
+  margin: 0 2px;
 }
 
 select.config {
-  border-color: rgb(217, 217, 217);
+  border-color: #cbd5e1;
 }
 
 #buttons {
   position: absolute;
   background-color: var(--grist-theme-page-panels-main-panel-bg, white);
   overflow: hidden;
-
-  border-bottom: 1px solid #d3d3d3;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
   top: 0px;
   left: 0px;
   z-index: 10;
@@ -107,25 +127,34 @@ select.config {
 }
 
 .selected {
-  --background-color: #007bff;
+  --background-color: #10b981;
 }
 
 .group-template {
-  border-bottom: 1px solid #d3d3d3;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
 .vertical-bar {
   /* vertical bar that splits columns */
   width: 1px;
-  background-color: #d3d3d3;
+  background-color: var(--border-color, #e2e8f0);
 }
 
 .item-template {
   display: flex;
   justify-content: space-between;
   min-height: 0px;
-  height: 23px;
-  line-height: 1em;
+  height: 26px;
+  line-height: 1.2em;
   align-items: center;
-  padding: 2px 4px;
+  padding: 0 8px;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.item-template span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

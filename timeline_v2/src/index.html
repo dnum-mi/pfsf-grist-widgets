@@ -12,10 +12,15 @@
     <div id="visualization">
       <div class="group-header" id="groupHeader">
         <div class="top">
-          <sl-button size="small" class="grist-outline" outline>Add new</sl-button>
-          <div class="resizer">
-            <sl-icon />
-          </div>
+          <sl-button size="small" variant="primary" id="btnAddRecord" class="btn-add-record" title="Ajouter un enregistrement">
+            <sl-icon slot="prefix" name="plus-lg"></sl-icon>
+            Ajouter
+          </sl-button>
+          <sl-tooltip content="Replier le panneau des groupes" placement="bottom" hoist id="tooltipResizeColumns">
+            <div class="resizer" id="btnResizeColumns">
+              <sl-icon class="resizer-icon" name="chevron-bar-left"></sl-icon>
+            </div>
+          </sl-tooltip>
         </div>
         <div class="bottom">
           <div class="left"></div>
@@ -39,37 +44,119 @@
     </div>
 
     <div id="status-bar">
-      <select class="conf-select config" id="timeline:timeAxis.scale">
-        <option value="day" selected>day</option>
-        <option value="week">week</option>
-        <option value="month">month</option>
-        <option value="year">year</option>
-      </select>
-      <sl-drawer label="Info" class="drawer-overview">
+      <div class="status-group">
+        <sl-tooltip content="Échelle d'affichage temporel">
+          <select class="conf-select config" id="timeline:timeAxis.scale" title="Échelle temporelle">
+            <option value="auto" selected>Auto</option>
+            <option value="day">Jour</option>
+            <option value="week">Semaine</option>
+            <option value="month">Mois</option>
+            <option value="year">Année</option>
+          </select>
+        </sl-tooltip>
+      </div>
+
+      <sl-drawer label="Informations" class="drawer-overview">
         <div class="drawer-info"></div>
-        <sl-button id="close-drawer" slot="footer" variant="success">Close</sl-button>
+        <sl-button id="close-drawer" slot="footer" variant="primary">Fermer</sl-button>
       </sl-drawer>
+
+      <!-- Panneau de réglages du widget (accessible via le bouton Réglages ou via les réglages Grist) -->
+      <sl-drawer label="Paramètres du widget" class="drawer-settings">
+        <div class="settings-content">
+          <div class="setting-item">
+            <div class="setting-desc">
+              <strong>Bouton "Ajouter"</strong>
+              <p>Afficher le bouton pour créer un enregistrement dans l'en-tête du tableau</p>
+            </div>
+            <sl-switch class="config" id="settings:showAddButton" checked></sl-switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-desc">
+              <strong>Ouvrir la fiche (Éditer carte)</strong>
+              <p>Ouvrir automatiquement la fiche Grist au clic sur un événement</p>
+            </div>
+            <sl-switch class="config" id="settings:editCard"></sl-switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-desc">
+              <strong>Confirmer les modifications</strong>
+              <p>Demander confirmation avant tout déplacement ou suppression d'événement</p>
+            </div>
+            <sl-switch class="config" id="settings:confirmChanges"></sl-switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-desc">
+              <strong>Centrer la vue (Focus sélection)</strong>
+              <p>Centrer automatiquement la timeline sur l'événement sélectionné</p>
+            </div>
+            <sl-switch class="config" id="settings:focusOnSelect"></sl-switch>
+          </div>
+        </div>
+        <sl-button id="close-settings" slot="footer" variant="primary">Fermer</sl-button>
+      </sl-drawer>
+
       <script>
         document.addEventListener('DOMContentLoaded', () => {
-          const closeButton = document.querySelector('#close-drawer');
+          const closeDrawer = document.querySelector('#close-drawer');
           const drawer = document.querySelector('.drawer-overview');
-          if (closeButton && drawer) {
-            closeButton.addEventListener('click', () => drawer.hide());
+          if (closeDrawer && drawer) {
+            closeDrawer.addEventListener('click', () => drawer.hide());
+          }
+          const closeSettings = document.querySelector('#close-settings');
+          const drawerSettings = document.querySelector('.drawer-settings');
+          if (closeSettings && drawerSettings) {
+            closeSettings.addEventListener('click', () => drawerSettings.hide());
           }
         });
       </script>
-      <sl-switch class="config" checked id="local:editCard" size="small">Edit card</sl-switch>
-      <sl-switch class="config" id="local:confirmChanges" size="small">Confirm changes</sl-switch>
-      <sl-switch class="config" id="local:focusOnSelect" size="small">Focus on select</sl-switch>
+
       <div style="margin-left: auto"></div>
-      <span class="widget-version" id="widget-version">v%VITE_APP_VERSION%</span>
-      <span id="dev-badge" class="badge-dev" style="display: none"></span>
-      <sl-icon-button id="fitButton" name="border-all" label="Settings"></sl-icon-button>
-      <sl-icon-button
-        id="allButton"
-        name="arrows-collapse-vertical"
-        label="Settings"
-      ></sl-icon-button>
+
+      <div class="status-group">
+        <span class="widget-version" id="widget-version">v%VITE_APP_VERSION%</span>
+        <span id="dev-badge" class="badge-dev" style="display: none"></span>
+      </div>
+
+      <div class="status-divider"></div>
+
+      <div class="status-group">
+        <sl-tooltip content="Zoom avant (agrandir la vue temporelle)">
+          <sl-icon-button
+            id="zoomInButton"
+            name="zoom-in"
+            label="Zoom avant"
+          ></sl-icon-button>
+        </sl-tooltip>
+        <sl-tooltip content="Zoom arrière (réduire la vue temporelle)">
+          <sl-icon-button
+            id="zoomOutButton"
+            name="zoom-out"
+            label="Zoom arrière"
+          ></sl-icon-button>
+        </sl-tooltip>
+        <sl-tooltip content="Ajuster le zoom (vue quotidienne confortable)">
+          <sl-icon-button
+            id="fitButton"
+            name="border-all"
+            label="Ajuster la vue"
+          ></sl-icon-button>
+        </sl-tooltip>
+        <sl-tooltip content="Afficher tous les événements (zoom global)">
+          <sl-icon-button
+            id="allButton"
+            name="arrows-collapse-vertical"
+            label="Tout afficher"
+          ></sl-icon-button>
+        </sl-tooltip>
+        <sl-tooltip content="Paramètres du widget">
+          <sl-icon-button
+            id="settingsButton"
+            name="gear"
+            label="Paramètres"
+          ></sl-icon-button>
+        </sl-tooltip>
+      </div>
     </div>
 
     <div class="cloak">

@@ -8,6 +8,11 @@ import iconExclamationOctagon from './icons/exclamation-octagon.svg?raw';
 import iconChevronBarLeft from './icons/chevron-bar-left.svg?raw';
 import iconChevronBarRight from './icons/chevron-bar-right.svg?raw';
 import iconBorderAll from './icons/border-all.svg?raw';
+import iconGear from './icons/gear.svg?raw';
+import iconPlusLg from './icons/plus-lg.svg?raw';
+import iconZoomIn from './icons/zoom-in.svg?raw';
+import iconZoomOut from './icons/zoom-out.svg?raw';
+import iconCollection from './icons/collection.svg?raw';
 
 const ICONS: Record<string, string> = {
   'three-dots': iconThreeDots,
@@ -15,7 +20,12 @@ const ICONS: Record<string, string> = {
   'exclamation-octagon': iconExclamationOctagon,
   'chevron-bar-left': iconChevronBarLeft,
   'chevron-bar-right': iconChevronBarRight,
-  'border-all': iconBorderAll
+  'border-all': iconBorderAll,
+  gear: iconGear,
+  'plus-lg': iconPlusLg,
+  'zoom-in': iconZoomIn,
+  'zoom-out': iconZoomOut,
+  collection: iconCollection
 };
 
 registerIconLibrary('default', {
@@ -36,6 +46,7 @@ import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 
 // Make sure we have monday as the first day of the week.
 moment.locale('en-gb');

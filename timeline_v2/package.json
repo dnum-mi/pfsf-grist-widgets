@@ -1,5 +1,5 @@
 {
-  "name": "@pfsf/widget-timeline-v2",
+  "name": "@pfsf/widget-timeline",
   "version": "0.1.0",
   "description": "Grist custom widget for advanced timeline with Shoelace, GrainJS and vis-timeline",
   "type": "module",
@@ -14,12 +14,12 @@
   },
   "grist": {
     "name": "Timeline Grist Native",
-    "widgetId": "@pfsf/widget-timeline-v2",
+    "widgetId": "@pfsf/widget-timeline",
     "version": "0.1.0",
     "published": true,
     "accessLevel": "full",
     "renderAfterReady": true,
-    "description": "Vue chronologique avancée (v2) interactive et réactive pour Grist"
+    "description": "Vue chronologique avancée interactive et réactive pour Grist"
   },
   "dependencies": {
     "@shoelace-style/shoelace": "2.18.0",
